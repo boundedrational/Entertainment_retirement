@@ -1,16 +1,16 @@
-/*************************************************/ 
-/*************************************************/ 
-/****************  TV exposure  ***************/ 
-/*************************************************/ 
-/*************************************************/ 
- 
-  
- 
- 
-clear 
-graph set print logo off 
- 
-graph set print tmargin 1 
+/*************************************************/
+/*************************************************/
+/****************  TV exposure  ***************/
+/*************************************************/
+/*************************************************/
+
+
+
+
+clear
+graph set print logo off
+
+graph set print tmargin 1
 graph set print lmargin 1
 set more off, perm
 set emptycells drop
@@ -30,10 +30,10 @@ set varabbrev on
 **********************************/
 
 if regexm(c(os),"Mac") == 1 {
-    global root "build" 
+	global root "/Users/felixkoenig/Google Drive/TV exposure/build"
     }
 else if regexm(c(os),"Windows") == 1 {
-    global root "build" 
+    global root "build"
 }
 global do_path "$root/build/code"
  global input_path "$root/build/input"
@@ -41,10 +41,10 @@ global do_path "$root/build/code"
  global output_path "$root/build/output"
  global log_path "$root/build/log"
  global datum = subinstr(c(current_date)," ","",.)
-cd "$input_path" 
-/**************** Version Controll ******************************/ 
- 
-shell "/usr/local/git/bin/git" --git-dir "$do_path/.git" --work-tree "$do_path/." commit -a -m "version $datum" 
+cd "$input_path"
+/**************** Version Controll ******************************/
+
+shell "/usr/local/git/bin/git" --git-dir "$do_path/.git" --work-tree "$do_path/." commit -a -m "version $datum"
 
 
 **********************************
@@ -66,4 +66,4 @@ log using regressions${datum}, replace
 
 cd "$do_path"
 do 2-regressions
-cap log close 
+cap log close
