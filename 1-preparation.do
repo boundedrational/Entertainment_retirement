@@ -102,9 +102,9 @@ foreach year in  54 55 56 {
 		  capture confirm file ../PrepFactbooks/19`year'/`subfolder'/query-out.txt
 		  if _rc==0 {
 		   	cap import delimited using ../PrepFactbooks/19`year'/`subfolder'/query-out.txt	, clear
-		   	g ITM_signal = (10*log(v17 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
+		   	g ITM_signal = (10*log(v14 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
 		   	g ITM_station = (ITM_signal>`threshold')
-		   	rename v14 countyfips2000
+		   	rename v11 countyfips2000
 		   	keep countyfips ITM_signal ITM_station
 		   	collapse (max) ITM_signal (sum) ITM_station , by(countyfips)
 		   	g year = 1900 + `year'
@@ -118,9 +118,9 @@ foreach year in  54 55 56 {
 		  else {
 		    display "The file 19`year'/`subfolder'/query-out.txt does not exist"
 		  }
-		}
 	}
 }
+
 
 /*
 ** signal map file
