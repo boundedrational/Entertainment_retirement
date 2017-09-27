@@ -80,7 +80,7 @@ local threshold = -50
 
 ** query output
 cd "$input_path"
-foreach year in  49  51 52 53{
+foreach year in  48 49 50 51 52 53{
 	cd "$input_path"
 	import delimited using ../PrepFactbooks/19`year'/query-out.txt	, clear
 	g ITM_signal = (10*log(v17 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
@@ -94,8 +94,32 @@ foreach year in  49  51 52 53{
 	** 25 counties in AL & HI. No DMA info, hence drop them
 	drop if _m!=3
 	save "$temp_path/signal`year'", replace
+}
 
+foreach year in  54 55 56 {
+	foreach subfolder in I II III {
+		cd "$input_path"
+		  capture confirm file ../PrepFactbooks/19`year'/`subfolder'/query-out.txt
+		  if _rc==0 {
+		   	cap import delimited using ../PrepFactbooks/19`year'/`subfolder'/query-out.txt	, clear
+		   	g ITM_signal = (10*log(v17 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
+		   	g ITM_station = (ITM_signal>`threshold')
+		   	rename v14 countyfips2000
+		   	keep countyfips ITM_signal ITM_station
+		   	collapse (max) ITM_signal (sum) ITM_station , by(countyfips)
+		   	g year = 1900 + `year'
 
+		   	merge 1:1 countyfips2000 using ../temp/xwalk_cty90cty00
+		   	** 25 counties in AL & HI. No DMA info, hence drop them
+		   	drop if _m!=3
+		   	save "$temp_path/signal`year'", replace
+
+		   }
+		  else {
+		    display "The file 19`year'/`subfolder'/query-out.txt does not exist"
+		  }
+		}
+	}
 }
 
 /*
@@ -125,8 +149,8 @@ foreach year in 48 49 50 51 52{
 }
 */
 
-use  "$temp_path/signal49", clear
-foreach year in  51 52 53 {
+use  "$temp_path/signal48", clear
+foreach year in  49 50 51 52 53 {
 	append using "$temp_path/signal`year'"
 }
 save "$temp_path/ITMTVdate", replace
