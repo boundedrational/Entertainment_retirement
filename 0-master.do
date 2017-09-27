@@ -30,7 +30,7 @@ set varabbrev on
 **********************************/
 
 if regexm(c(os),"Mac") == 1 {
-	global root "/Users/felixkoenig/Google Drive/TV exposure/build"
+	global root "/Users/felixkoenig/Google Drive/TV exposure"
     }
 else if regexm(c(os),"Windows") == 1 {
     global root "build"
