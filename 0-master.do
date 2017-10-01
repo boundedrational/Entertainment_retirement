@@ -31,6 +31,8 @@ set varabbrev on
 
 if regexm(c(os),"Mac") == 1 {
 	global root "/Users/felixkoenig/Google Drive/TV exposure"
+	global data "/Users/felixkoenig/Documents/LSE/research-projects/DATA"
+
     }
 else if regexm(c(os),"Windows") == 1 {
     global root "build"
@@ -54,7 +56,7 @@ shell "/usr/local/git/bin/git" --git-dir "$do_path/.git" --work-tree "$do_path/.
 
 cd "$log_path"
 cap log close
-log using preparation${datum}, replace
+log using preparation${datum}.log, replace
 
 cd "$do_path"
 do 1-preparation
@@ -62,7 +64,7 @@ cap log close
 
 cd "$log_path"
 cap log close
-log using regressions${datum}, replace
+log using regressions${datum}.log, replace
 
 cd "$do_path"
 do 2-regressions
