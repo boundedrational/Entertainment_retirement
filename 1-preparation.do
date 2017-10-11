@@ -80,7 +80,7 @@ save ../temp/ALlyearTV, replace
 local threshold = -50
 ** query output
 cd "$input_path"
-foreach year in  48 49 50 51 52 53{
+foreach year in  48 49 50 51 52 53 {
 	cd "$input_path"
 	import delimited using ../PrepFactbooks/19`year'/query-out.txt	, clear
 	g ITM_signal = (10*log(v17 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
@@ -96,7 +96,7 @@ foreach year in  48 49 50 51 52 53{
 	save "$temp_path/signal`year'", replace
 }
 
-foreach year in  55 56 {
+foreach year in 54 55 56 57{
 	foreach subfolder in I II III {
 		cd "$input_path"
 		  capture confirm file ../PrepFactbooks/19`year'/`subfolder'/query-out.txt
@@ -121,7 +121,7 @@ foreach year in  55 56 {
 	}
 }
 
-foreach year in   55 56 {
+foreach year in   54 55 56 57 {
 	use "$temp_path/signal`year'_I"
 	foreach subfolder in II III {
 		cap append "$temp_path/signal`year'_`subfolder'"
@@ -131,39 +131,31 @@ foreach year in   55 56 {
 
 
 
-/*
-** signal map file
-cd "$input_path"
-foreach year in 48 49 50 51 52{
-	import delimited using ../PrepFactbooks/19`year'/ITM`year'_MaxSignal.csv	, clear
-
-	* xwalk cty to DMA
-	cap rename fips countyfips
-	* data in ITM is in 2000 counties
-	rename countyfips countyfips2000
-	merge 1:1 countyfips2000 using ../temp/xwalk_cty90cty00
-
-	if `year' == 50{
-		replace maxsignal ="." if maxsignal=="NA"
-		destring maxsignal, replace
-	}
-	* get rid of Alaska and Hawaii
-	drop if state == "AK" | state == "HI"
-
-
-	g year = 1900 + `year'
-
-	g TV_signal = (maxsignal>`threshold') & maxsignal!=.
-	save "$temp_path/signal`year'", replace
-}
-*/
-
 use  "$temp_path/signal48", clear
-foreach year in  49 50 51 52 53 55 {
+foreach year in  49 50 51 52 53 54 55 56 57 {
 	append using "$temp_path/signal`year'"
 }
 save "$temp_path/ITMTVdate", replace
 
+/*
+
+. tab year
+
+       year |      Freq.     Percent        Cum.
+------------+-----------------------------------
+       1948 |      3,118       10.01       10.01
+       1949 |      3,118       10.01       20.02
+       1950 |      3,118       10.01       30.03
+       1951 |      3,118       10.01       40.05
+       1952 |      3,118       10.01       50.06
+       1953 |      3,118       10.01       60.07
+       1954 |      3,109        9.98       70.05
+       1955 |      3,109        9.98       80.03
+       1956 |      3,109        9.98       90.02
+       1957 |      3,109        9.98      100.00
+------------+-----------------------------------
+      Total |     31,144      100.00
+*/
 
 /*********************************************************
 ******         merge DMA and ITM data     		**********
@@ -181,7 +173,7 @@ not matched                             1
     from master                         0  (_merge==1)
     from using                          1  (_merge==2) DMA 161 in Gentzkow data, but no county assigned to it
 
-matched                            21,817  (_merge==3)
+matched                             31,144  (_merge==3)
 -----------------------------------------
 */
 drop if _m!=3
@@ -190,7 +182,32 @@ drop _merge
 duplicates drop year countyfips, force
 merge 1:m year countyfips using ../temp/ALlyearTV
 ** virginia cities w/o TV data (and a few other cty)
+/*
+          |              _merge
+      year | master on  using onl  matched ( |     Total
+-----------+---------------------------------+----------
+      1948 |     3,117          0          0 |     3,117 no TV ownership
+      1949 |     3,117          0          0 |     3,117 no TV ownership
+      1950 |        27          1      3,090 |     3,118  FIGURE THIS OUT?!?!?
+      1951 |     3,117          0          0 |     3,117 no TV ownership
+      1952 |     3,117          0          0 |     3,117 no TV ownership
+      1953 |     1,296          0      1,821 |     3,117
+      1954 |       657          0      2,451 |     3,108
+      1955 |       382          0      2,726 |     3,108
+      1956 |        74          0      3,034 |     3,108
+      1957 |        45          0      3,063 |     3,108
+      1958 |         0      2,759          0 |     2,759 no TV signal
+      1959 |         0      3,057          0 |     3,057
+      1960 |         0      3,089          0 |     3,089
+-----------+---------------------------------+----------
+     Total |    14,949      8,906     16,185 |    40,040
 
+*/
+* drop missed match
+levelsof countyfips if _m!=3  & year == 1950, local(miss_match)
+foreach location of local miss_match{
+	drop if countyfips == `location'
+}
 ** Define TV expoure
 g DMA_access = year >= TVYEAR & TVYEAR!=.
 g ITM_access = ITM_station>0 & ITM_station!=.
@@ -199,7 +216,7 @@ g ITM_access = ITM_station>0 & ITM_station!=.
 g tvhh = TVHH / TOTALHH
 ** missing counties are without tv signal according to magazine
 g TVHH_with0 = tvhh
-replace TVHH_with0 = 0 if year > 1952 & TVHH_with0 == .
+replace TVHH_with0 = 0 if year > 1952 & year<1958 & TVHH_with0 == .
 drop _m
 save ../temp/TVaccess, replace
 
