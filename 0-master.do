@@ -56,15 +56,15 @@ shell "/usr/local/git/bin/git" --git-dir "$do_path/.git" --work-tree "$do_path/.
 
 cd "$log_path"
 cap log close
-log using preparation${datum}.log, replace
+log using preparation${datum}, replace text
 
 cd "$do_path"
 do 1-preparation
 cap log close
 
-cd "$log_path"
+	cd "$log_path"
 cap log close
-log using regressions${datum}.log, replace
+log using regressions${datum}.txt, replace
 
 cd "$do_path"
 do 2-regressions

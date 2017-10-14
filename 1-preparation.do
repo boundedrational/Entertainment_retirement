@@ -80,12 +80,20 @@ save ../temp/ALlyearTV, replace
 local threshold = -50
 ** query output
 cd "$input_path"
-foreach year in  48 49 50 51 52 53 {
+foreach year in  48 49 50 51 52 53 54 55 56 57 58 59 60 {
 	cd "$input_path"
 	import delimited using ../PrepFactbooks/19`year'/query-out.txt	, clear
+	if `year' > 53 {
+		g ITM_signal = (10*log(v14 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
+		g ITM_station = (ITM_signal>`threshold')
+		rename v11 countyfips2000
+	}
+	if `year' <= 53 {
+
 	g ITM_signal = (10*log(v17 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
 	g ITM_station = (ITM_signal>`threshold')
 	rename v14 countyfips2000
+	}
 	keep countyfips ITM_signal ITM_station
 	collapse (max) ITM_signal (sum) ITM_station , by(countyfips)
 	g year = 1900 + `year'
@@ -95,7 +103,7 @@ foreach year in  48 49 50 51 52 53 {
 	drop if _m!=3
 	save "$temp_path/signal`year'", replace
 }
-
+/*
 foreach year in 54 55 56 57{
 	foreach subfolder in I II III {
 		cd "$input_path"
@@ -128,11 +136,11 @@ foreach year in   54 55 56 57 {
 	}
 	save "$temp_path/signal`year'", replace
 }
-
+*/
 
 
 use  "$temp_path/signal48", clear
-foreach year in  49 50 51 52 53 54 55 56 57 {
+foreach year in  49 50 51 52 53 54 55 56 57 58 59 60 {
 	append using "$temp_path/signal`year'"
 }
 save "$temp_path/ITMTVdate", replace
@@ -141,20 +149,24 @@ save "$temp_path/ITMTVdate", replace
 
 . tab year
 
-       year |      Freq.     Percent        Cum.
-------------+-----------------------------------
-       1948 |      3,118       10.01       10.01
-       1949 |      3,118       10.01       20.02
-       1950 |      3,118       10.01       30.03
-       1951 |      3,118       10.01       40.05
-       1952 |      3,118       10.01       50.06
-       1953 |      3,118       10.01       60.07
-       1954 |      3,109        9.98       70.05
-       1955 |      3,109        9.98       80.03
-       1956 |      3,109        9.98       90.02
-       1957 |      3,109        9.98      100.00
-------------+-----------------------------------
-      Total |     31,144      100.00
+              year |      Freq.     Percent        Cum.
+       ------------+-----------------------------------
+              1948 |      3,118        7.70        7.70
+              1949 |      3,118        7.70       15.41
+              1950 |      3,118        7.70       23.11
+              1951 |      3,118        7.70       30.82
+              1952 |      3,118        7.70       38.52
+              1953 |      3,118        7.70       46.23
+              1954 |      3,109        7.68       53.91
+              1955 |      3,109        7.68       61.59
+              1956 |      3,109        7.68       69.27
+              1957 |      3,109        7.68       76.95
+              1958 |      3,109        7.68       84.64
+              1959 |      3,109        7.68       92.32
+              1960 |      3,109        7.68      100.00
+       ------------+-----------------------------------
+             Total |     40,471      100.00
+
 */
 
 /*********************************************************
@@ -183,24 +195,30 @@ duplicates drop year countyfips, force
 merge 1:m year countyfips using ../temp/ALlyearTV
 ** virginia cities w/o TV data (and a few other cty)
 /*
-          |              _merge
+
+. tab year _m
+
+           |              _merge
       year | master on  using onl  matched ( |     Total
 -----------+---------------------------------+----------
-      1948 |     3,117          0          0 |     3,117 no TV ownership
-      1949 |     3,117          0          0 |     3,117 no TV ownership
-      1950 |        27          1      3,090 |     3,118  FIGURE THIS OUT?!?!?
-      1951 |     3,117          0          0 |     3,117 no TV ownership
-      1952 |     3,117          0          0 |     3,117 no TV ownership
+      1948 |     3,117          0          0 |     3,117 no ownership data
+      1949 |     3,117          0          0 |     3,117 no ownership data
+      1950 |        27          1      3,090 |     3,118 FIGURE THIS OUT?!?!?
+      1951 |     3,117          0          0 |     3,117 no ownership data
+      1952 |     3,117          0          0 |     3,117 no ownership data
       1953 |     1,296          0      1,821 |     3,117
       1954 |       657          0      2,451 |     3,108
       1955 |       382          0      2,726 |     3,108
       1956 |        74          0      3,034 |     3,108
       1957 |        45          0      3,063 |     3,108
-      1958 |         0      2,759          0 |     2,759 no TV signal
-      1959 |         0      3,057          0 |     3,057
-      1960 |         0      3,089          0 |     3,089
+      1958 |       349          0      2,759 |     3,108
+      1959 |        51          0      3,057 |     3,108
+      1960 |        20          1      3,088 |     3,109 FIGURE THIS OUT?!?!?
 -----------+---------------------------------+----------
-     Total |    14,949      8,906     16,185 |    40,040
+     Total |    15,369          2     25,089 |    40,460
+
+
+1960 _m==1 additionally to 1950: countyfips 2000, 6003, 8079, 30111, 48261, 48269, 48301
 
 */
 * drop missed match
@@ -225,7 +243,7 @@ reghdfe TVHH_with0 DMA_access ITM_access, absorb(year countyfips2000)
 reghdfe TVHH_with0 DMA_access ITM_station, absorb(year countyfips2000)
 reghdfe TVHH_with0 DMA_access ITM_signal, absorb(year countyfips2000)
 reghdfe tvhh DMA_access ITM_access, absorb(year countyfips2000)
-reghdfe TVHH_with0 DMA_access ITM_access if year!=1950, absorb(year countyfips2000)
+reghdfe TVHH_with0 DMA_access ITM_access if year!=1950 & year!=1960, absorb(year countyfips2000)
 
 areg TVHH_with0 i.year , absorb(countyfips2000)
 predict residulas, resid
@@ -245,7 +263,7 @@ save $data/lookup/CTY&STATE_ICPSR_FIPS, replace
 
 
 ** ICPSR 3
-use  "../input/voting ICPSR 3/00013-0003-Data.dta", clear
+use  "../input/Replication/voting ICPSR 3/00013-0003-Data.dta", clear
 g countyfip = int(V5/10)
 rename V2 state
 
