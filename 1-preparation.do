@@ -378,4 +378,6 @@ append using ../temp/census1950
 bys countyfips: egen  area2 = max(area)
 drop area
 g pop_density = totpop/area2
+* some missing countyfips
+drop if countyfips == .
 save ../output/controls, replace
