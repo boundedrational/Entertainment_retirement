@@ -337,8 +337,14 @@ replace GS_sample = 1 if missing_years == .
 unique countyfips if GS_sample==1
 * should have 3081 counties, but get 3083 matched counties (About 3200 voting data counties)
 
+* dummy indicating years with presidential elections
 g presidential_year = (vote_P!=.)
-keep year  countyfip vote_C presidential_year GS_sample REP_DEM_gap
+
+** reference participation (1940)
+bys countyfips: egen helper = max(vote_C) if year == 1940
+bys countyfips: egen  ref_participation= max(helper)
+
+keep year  countyfip vote_C presidential_year GS_sample REP_DEM_gap ref_participation
 save ../output/vote_data, replace
 
 /*********************************************************
@@ -350,12 +356,11 @@ save ../output/vote_data, replace
 
 use fips region1 area totpop urb950 nwmtot fbwmtot nwftot fbwftot pctnonw medfinc medage f25hs4 m25hs4 m25col4 f25hs4 f25col13 f25col4  m25 f25 f25edunk m25edunk using "../input/Replication/1950 Census/DS0035/02896-0035-Data.dta", clear
 rename fips countyfips
-g pop_density = totpop / area
 g urban_share = urb950 / totpop
 g lpop = ln(totpop)
 g share_NW = 1-(nwmtot+ fbwmtot +nwftot+ fbwftot)/totpop
 g share_HS = (f25hs4+ m25hs4+ m25col4+ f25hs4+ f25col13+ f25col4)/( m25 +f25 - f25edunk - m25edunk)
-keep countyfips region1 pop_density urban_share lpop share_NW share_HS medage medfinc area
+keep countyfips region1 totpop urban_share lpop share_NW share_HS medage medfinc area
 g year = 1950
 save ../temp/census1950, replace
 
@@ -365,10 +370,12 @@ use fips region1  totpop  whtot  using "../input/Replication/1960 Census/DS0038/
 g lpop = ln(totpop)
 rename fips countyfips
 g share_NW = 1- whtot/totpop
-g year =1960
 keep countyfips region1 totpop lpop share_NW
+g year =1960
 save ../temp/census1960, replace
 
 append using ../temp/census1950
-bys countyfips2000: egen = area2 = max(area)
-g pop_density = totpop
+bys countyfips: egen  area2 = max(area)
+drop area
+g pop_density = totpop/area2
+save ../output/controls, replace
