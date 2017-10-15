@@ -145,6 +145,7 @@ foreach year in  49 50 51 52 53 54 55 56 57 58 59 60 {
 }
 save "$temp_path/ITMTVdate", replace
 
+
 /*
 
 . tab year
@@ -259,8 +260,13 @@ g year_TV_DMA = year - first_TVyear_DMA
 replace year_TV_DMA = 0 if year_TV_DMA<0
 g GS_yearsTV = year - TVYEAR
 replace GS_yearsTV = 0 if GS_yearsTV<0
-save ../output/TVaccess, replace
 
+save ../output/TVaccess, replace
+keep ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year countyfips
+
+reshape wide ITM_signal ITM_station DMA_access ITM_access GS_yearsTV, j(year) i(countyfips)
+
+save ../output/TVwide, replace
 /*********************************************************
 ******         read in voting data     		**********
 *********************************************************/
