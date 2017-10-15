@@ -236,21 +236,30 @@ g tvhh = TVHH / TOTALHH
 g TVHH_with0 = tvhh
 replace TVHH_with0 = 0 if year > 1952 & year<1958 & TVHH_with0 == .
 drop _m
-save ../temp/TVaccess, replace
+replace ITM_station = 0 if year<1940
+replace DMA_access = 0 if year<1940
 
-** analysis
-reghdfe TVHH_with0 DMA_access ITM_access, absorb(year countyfips2000)
-reghdfe TVHH_with0 DMA_access ITM_station, absorb(year countyfips2000)
-reghdfe TVHH_with0 DMA_access ITM_signal, absorb(year countyfips2000)
-reghdfe tvhh DMA_access ITM_access, absorb(year countyfips2000)
-reghdfe TVHH_with0 DMA_access ITM_access if year!=1950 & year!=1960, absorb(year countyfips2000)
+** generate variable that gives first TV year if TV running and first year with data if no TV
+bys countyfips2000 DMA_access: egen first_TVyear_DMA = min(year)
+bys countyfips2000 ITM_access: egen first_TVyear_ITM = min(year)
 
-areg TVHH_with0 i.year , absorb(countyfips2000)
-predict residulas, resid
+* ATM all pre 45 TV channels are lumped in with 45-51. Data on pre 48 period still missing
+g TVpre_45_DMA = (first_TVyear_DMA<1945 & DMA_access==1)
+g TVpre_45_ITM = (first_TVyear_ITM<1945 & ITM_access==1)
+g TV_45_51_DMA = (first_TVyear_DMA>=1945 & first_TVyear_DMA<1952 & DMA_access==1)
+g TV_45_51_ITM = (first_TVyear_ITM>=1945 & first_TVyear_DMA<1952 & ITM_access==1)
+g TVpost_51_DMA = (first_TVyear_DMA>1951 & DMA_access==1)
+g TVpost_51_ITM = (first_TVyear_ITM>1951 & ITM_access==1)
+g year_TV_DMA = year - first_TVyear_DMA
+replace year_TV_DMA = 0 if year_TV_DMA<0
+
+save ../output/TVaccess, replace
 
 /*********************************************************
 ******         read in voting data     		**********
 *********************************************************/
+
+* Is turnout relative to voters or population? Later is what G&S use
 
 import excel using "$data/lookup/CTY&STATE_ICPSR_FIPS.xls", firstrow clear
 drop in 1
@@ -269,7 +278,8 @@ rename V2 state
 
 ** ICPSR 8611
 local turnout "V384 V392 V401 V408 V417 V427 V433 V442 V451 V457 V467 V476 V482 V489 V497 V503 V510 V520 V526 V535 V545 V551 V558 V566 V572 V579 V585 V592 V598 V603 V608 V613 V618 V623 V628 V633 V638 V643 V648 V653 V658 V663 V669 V674 V679 V684 V689"
-use  V1-V3 `turnout' using "../input/Replication/ICPSR_08611/DS0001/08611-0001-Data.dta", clear
+local DEM_REP "V317 V322 V324 V328 V330 V336 V343 V345 V350 V352 V357 V364 V370 V372 V378 V385 V387 V393 V395 V402 V409 V411 V418 V420 V428 V434 V436 V443 V445 V452 V458 V460 V468 V470 V477 V483 V490 V498 V504 V511 V513 V521 V527 V529 V536 V538 V546 V552 V559 V567 V569 V573 V580 V582 V586 V589 V593 V599 V604 V609 V614 V619 V624 V629 V634 V639 V644 V649 V654 V659 V664 V670 V675 V680 V685 V318 V323 V329 V331 V337 V344 V351 V358 V365 V371 V373 V379 V386 V394 V396 V403 V410 V412 V419 V421 V429 V435 V437 V444 V453 V459 V461 V469 V471 V478 V484 V491 V492 V499 V505 V512 V514 V522 V528 V530 V537 V539 V547 V548 V553 V560 V561 V568 V574 V575 V581 V587 V594 V600 V605 V610 V615 V620 V625 V630 V635 V640 V645 V650 V655 V660 V665 V671 V676 V681 V686"
+use  V1-V3 `turnout' `DEM_REP' using "../input/Replication/ICPSR_08611/DS0001/08611-0001-Data.dta", clear
 * convert ICPSR to FIPS
 rename V3 Countycod
 rename V1 STATEICP
@@ -287,6 +297,7 @@ matched                             3,203  (_merge==3)
 
 drop if _m!=3
 drop _m
+*rename variables
 foreach v of local turnout {
    local x : variable label `v'
    local name_sub = substr("`x'",6,1)
@@ -294,20 +305,70 @@ foreach v of local turnout {
    di "vote_`name_sub'`year_sub'"
    rename `v' vote_`name_sub'`year_sub'
 }
-reshape long vote_C vote_P, i(countyfips) j(year)
-merge 1:m countyfips year using ../temp/TVaccess
-/*
-Result                           # of obs.
------------------------------------------
-not matched                        97,409
-    from master                    78,719  (_merge==1)
-    from using                     18,690  (_merge==2)
+foreach v of local DEM_REP {
+   local x : variable label `v'
+   local name_sub = substr("`x'",6,9)
+   local year_sub = substr("`x'",1,4)
+   local name_sub = subinstr("`name_sub'"," ","_",.)
+   local name_sub = subinstr("`name_sub'","-","2",.)
 
-matched                            20,574  (_merge==3)
------------------------------------------
-*/
-replace ITM_station = 0 if year<1940
-replace DMA_access = 0 if year<1940
+   di "vote_`name_sub'`year_sub'"
+   rename `v' vote_`name_sub'`year_sub'
+}
+drop vote_PRES* vote_CONG_DEM2* vote_CONG_REP2*
+reshape long vote_C vote_P vote_CONG_REP_ vote_CONG_DEM_  , i(countyfips) j(year)
 
-reghdfe vote_P DMA_access ITM_station, absorb(year countyfips)
-reghdfe vote_C DMA_access ITM_station, absorb(year countyfips)
+* missings are coded as strange values (around 999.9)
+foreach var in vote_C vote_P vote_CONG_REP_ vote_CONG_DEM_  {
+	replace `var' = . if `var'>999
+}
+*sanity check
+g sanity = (vote_CONG_REP_+vote_CONG_DEM_<101)
+foreach var in vote_CONG_REP_ vote_CONG_DEM_  {
+		replace `var' = . if sanity==0
+}
+g REP_DEM_gap = vote_CONG_REP_ - vote_CONG_DEM_
+replace REP_DEM_gap = REP_DEM_gap * -1 if REP_DEM_gap<0
+
+*G&S restrict sample to counties with participation data in majority of years
+bys countyf: g missing_years = sum(vote_C==.) if year > 1939
+g GS_sample = (missing_years<8)
+replace GS_sample = 1 if missing_years == .
+unique countyfips if GS_sample==1
+* should have 3081 counties, but get 3083 matched counties (About 3200 voting data counties)
+
+g presidential_year = (vote_P!=.)
+keep year  countyfip vote_C presidential_year GS_sample REP_DEM_gap
+save ../output/vote_data, replace
+
+/*********************************************************
+******         controls    		**********
+*********************************************************/
+* 1950 Census data - county info:
+* log population, pop per mile^2, % urban, % white, median income, median age, % high school, census regions
+* median age & incom only grouped in ICPSR
+
+use fips region1 area totpop urb950 nwmtot fbwmtot nwftot fbwftot pctnonw medfinc medage f25hs4 m25hs4 m25col4 f25hs4 f25col13 f25col4  m25 f25 f25edunk m25edunk using "../input/Replication/1950 Census/DS0035/02896-0035-Data.dta", clear
+rename fips countyfips
+g pop_density = totpop / area
+g urban_share = urb950 / totpop
+g lpop = ln(totpop)
+g share_NW = 1-(nwmtot+ fbwmtot +nwftot+ fbwftot)/totpop
+g share_HS = (f25hs4+ m25hs4+ m25col4+ f25hs4+ f25col13+ f25col4)/( m25 +f25 - f25edunk - m25edunk)
+keep countyfips region1 pop_density urban_share lpop share_NW share_HS medage medfinc area
+g year = 1950
+save ../temp/census1950, replace
+
+* 1960 data:
+* ln pop, pop per mile^2, % white
+use fips region1  totpop  whtot  using "../input/Replication/1960 Census/DS0038/02896-0038-Data.dta", clear
+g lpop = ln(totpop)
+rename fips countyfips
+g share_NW = 1- whtot/totpop
+g year =1960
+keep countyfips region1 totpop lpop share_NW
+save ../temp/census1960, replace
+
+append using ../temp/census1950
+bys countyfips2000: egen = area2 = max(area)
+g pop_density = totpop
