@@ -173,25 +173,30 @@ save "$temp_path/ITMTVdate", replace
 ******         merge DMA and ITM data     		**********
 *********************************************************/
 
+** ITM data
 use  ../temp/ITMTVdate, clear
-
 drop _m
+
+** add ID for DMA
 merge m:1 DMAINDEX using ../temp/DMATVdate
 /*
 
 Result                           # of obs.
------------------------------------------
-not matched                             1
-    from master                         0  (_merge==1)
-    from using                          1  (_merge==2) DMA 161 in Gentzkow data, but no county assigned to it
+ -----------------------------------------
+ not matched                             1
+     from master                         0  (_merge==1)
+     from using                          1  (_merge==2)
 
-matched                             31,144  (_merge==3)
------------------------------------------
+ matched                            40,471  (_merge==3)
+ -----------------------------------------
+
 */
 drop if _m!=3
 drop _merge
 ** county split implies there are two observations for a 1990 county
 duplicates drop year countyfips, force
+
+** add GS TV household data
 merge 1:m year countyfips using ../temp/ALlyearTV
 ** virginia cities w/o TV data (and a few other cty)
 /*
@@ -252,14 +257,15 @@ g TVpost_51_DMA = (first_TVyear_DMA>1951 & DMA_access==1)
 g TVpost_51_ITM = (first_TVyear_ITM>1951 & ITM_access==1)
 g year_TV_DMA = year - first_TVyear_DMA
 replace year_TV_DMA = 0 if year_TV_DMA<0
-
+g GS_yearsTV = year - TVYEAR
+replace GS_yearsTV = 0 if GS_yearsTV<0
 save ../output/TVaccess, replace
 
 /*********************************************************
 ******         read in voting data     		**********
 *********************************************************/
 
-* Is turnout relative to voters or population? Later is what G&S use
+* Is turnout relative to voters or population? Latter is what G&S use
 
 import excel using "$data/lookup/CTY&STATE_ICPSR_FIPS.xls", firstrow clear
 drop in 1
