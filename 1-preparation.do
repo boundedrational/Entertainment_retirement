@@ -318,14 +318,14 @@ foreach v of local DEM_REP {
 drop vote_PRES* vote_CONG_DEM2* vote_CONG_REP2*
 reshape long vote_C vote_P vote_CONG_REP_ vote_CONG_DEM_  , i(countyfips) j(year)
 
-* missings are coded as strange values (around 999.9)
+* missings are coded as strange values (around 999.9), also set participation > 100%
 foreach var in vote_C vote_P vote_CONG_REP_ vote_CONG_DEM_  {
-	replace `var' = . if `var'>999
+	replace `var' = . if `var'>101
 }
 *sanity check
 g sanity = (vote_CONG_REP_+vote_CONG_DEM_<101)
 foreach var in vote_CONG_REP_ vote_CONG_DEM_  {
-		replace `var' = . if sanity==0
+		replace `var' = . if sanity == 0
 }
 g REP_DEM_gap = vote_CONG_REP_ - vote_CONG_DEM_
 replace REP_DEM_gap = REP_DEM_gap * -1 if REP_DEM_gap<0
@@ -350,34 +350,58 @@ save ../output/vote_data, replace
 /*********************************************************
 ******         controls    		**********
 *********************************************************/
-* 1950 Census data - county info:
-* log population, pop per mile^2, % urban, % white, median income, median age, % high school, census regions
-* median age & incom only grouped in ICPSR
 
-use fips region1 area totpop urb950 nwmtot fbwmtot nwftot fbwftot pctnonw medfinc medage f25hs4 m25hs4 m25col4 f25hs4 f25col13 f25col4  m25 f25 f25edunk m25edunk using "../input/Replication/1950 Census/DS0035/02896-0035-Data.dta", clear
+* 1950 Census data - county info:
+* pop per mile^2, % urban,  median age, % high school, census regions
+use fips area totpop highschool  urban  medage using ../input/Replication/demo_50, clear
 rename fips countyfips
-g urban_share = urb950 / totpop
-g lpop = ln(totpop)
-g share_NW = 1-(nwmtot+ fbwmtot +nwftot+ fbwftot)/totpop
-g share_HS = (f25hs4+ m25hs4+ m25col4+ f25hs4+ f25col13+ f25col4)/( m25 +f25 - f25edunk - m25edunk)
-keep countyfips region1 totpop urban_share lpop share_NW share_HS medage medfinc area
-g year = 1950
+g ppl_sqm = totpop / area
+foreach var of varlist highschool  urban  medage ppl_sqm  {
+	rename `var' `var'_50
+}
+keep countyfips  highschool  urban  medage ppl_sqm
+save ../temp/census1950, replace
+
+* add % white, census region
+use fips region1 totpop nwmtot fbwmtot nwftot fbwftot pctnonw using "../input/Replication/1950 Census/DS0035/02896-0035-Data.dta", clear
+rename fips countyfips
+g share_NW_50 = 1-(nwmtot+ fbwmtot +nwftot+ fbwftot)/totpop
+keep countyfips  share_NW region1
+* some missing countyfips
+drop if countyfips == .
+merge 1:1 countyfips using ../temp/census1950
+drop if _m!=3
+drop _m
 save ../temp/census1950, replace
 
 * 1960 data:
-* ln pop, pop per mile^2, % white
-use fips region1  totpop  whtot  using "../input/Replication/1960 Census/DS0038/02896-0038-Data.dta", clear
+* ln pop, median income
+use fips totpop medinc using ../input/Replication/demo_60, clear
 g lpop = ln(totpop)
 rename fips countyfips
-g share_NW = 1- whtot/totpop
-keep countyfips region1 totpop lpop share_NW
-g year =1960
+keep countyfips lpop medinc
+foreach var of varlist lpop medinc {
+	rename `var' `var'_60
+}
 save ../temp/census1960, replace
 
-append using ../temp/census1950
-bys countyfips: egen  area2 = max(area)
-drop area
-g pop_density = totpop/area2
-* some missing countyfips
-drop if countyfips == .
+merge 1:1  countyfips using ../temp/census1950
+/*
+
+
+Result                           # of obs.
+-----------------------------------------
+not matched                            61
+    from master                        54  (_merge==1)
+    from using                          7  (_merge==2)
+
+matched                             3,103  (_merge==3)
+-----------------------------------------
+
+
+*/
+
+drop if _m!=3
+drop _m
 save ../output/controls, replace
+
