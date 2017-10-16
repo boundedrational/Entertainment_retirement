@@ -257,14 +257,18 @@ g TV_45_51_ITM = (first_TVyear_ITM>=1945 & first_TVyear_DMA<1952 & ITM_access==1
 g TVpost_51_DMA = (first_TVyear_DMA>1951 & DMA_access==1)
 g TVpost_51_ITM = (first_TVyear_ITM>1951 & ITM_access==1)
 g year_TV_DMA = year - first_TVyear_DMA
-replace year_TV_DMA = 0 if year_TV_DMA<0
+g year_TV_ITM = year - first_TVyear_ITM
+replace year_TV_DMA = 0 if year_TV_ITM<0
+replace year_TV_ITM = 0 if year_TV_DMA<0
 g GS_yearsTV = year - TVYEAR
 replace GS_yearsTV = 0 if GS_yearsTV<0
 
 save ../output/TVaccess, replace
-keep ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year countyfips
 
-reshape wide ITM_signal ITM_station DMA_access ITM_access GS_yearsTV, j(year) i(countyfips)
+use ../output/TVaccess
+keep ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year countyfips year_TV_ITM
+
+reshape wide ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year_TV_ITM, j(year) i(countyfips)
 
 save ../output/TVwide, replace
 /*********************************************************
