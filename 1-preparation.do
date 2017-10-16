@@ -266,10 +266,12 @@ replace GS_yearsTV = 0 if GS_yearsTV<0
 save ../output/TVaccess, replace
 
 use ../output/TVaccess
-keep ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year countyfips year_TV_ITM
+keep TVYEAR ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year countyfips year_TV_ITM
 
 reshape wide ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year_TV_ITM, j(year) i(countyfips)
-
+g group = 1 if TVYEAR == 1946
+replace group = 2 if TVYEAR > 1946 & TVYEAR < 1952
+replace group = 3 if TVYEAR >1951 & TVYEAR!=.
 save ../output/TVwide, replace
 /*********************************************************
 ******         read in voting data     		**********
