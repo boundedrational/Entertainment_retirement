@@ -87,14 +87,26 @@ foreach year in  48 49 50 51 52 53 54 55 56 57 58 59 60 {
 		g ITM_signal = (10*log(v14 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
 		g ITM_station = (ITM_signal>`threshold')
 		rename v11 countyfips2000
+    rename v12 Station
+    rename v13 city_str
 	}
 	if `year' <= 53 {
-
 	g ITM_signal = (10*log(v17 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
 	g ITM_station = (ITM_signal>`threshold')
 	rename v14 countyfips2000
+  rename v15 Station
+  rename v16 city_str
 	}
+  g Channel = substr(city_str,-2,2)
+  g str_len = strlen(city_str)
+  g City = substr(city_str,1,str_len-2)
+  destring Channel, replace
+  replace City = trim(City)
+  if `year' == 48 {
+    save ../temp/data48, replace
+  }
 	keep countyfips ITM_signal ITM_station
+
 	collapse (max) ITM_signal (sum) ITM_station , by(countyfips)
 	g year = 1900 + `year'
 
@@ -138,11 +150,42 @@ foreach year in   54 55 56 57 {
 }
 */
 
+/*********************************************************
+******         infer pre 1948 TV data       **********
+*********************************************************/
+
+import excel using ../PrepFactbooks/1948/FB48.xlsx, clear firstrow
+g start_year = 1900 + StartYear
+replace start_year = start_year + 1 if StartMonth>3
+keep City Station Channel start_year
+g TV47 = (start_year<=1947)
+g TV46 = (start_year<=1946)
+drop if start_year==1949
+replace City = trim(City)
+rename City City_xlsx
+rename Channel Channel_xlsx
+
+merge 1:m Station  using ../temp/data48
+
+foreach year in 46 47 {
+  preserve
+  drop if TV`year'!=1
+  keep countyfips ITM_signal ITM_station
+  collapse (max) ITM_signal (sum) ITM_station , by(countyfips)
+  g year = 1900 + `year'
+  merge 1:1 countyfips2000 using ../temp/xwalk_cty90cty00
+  ** 25 counties in AL & HI. No DMA info, hence drop them
+  drop if _m!=3
+  save "$temp_path/signal`year'", replace
+  restore
+}
+
 
 use  "$temp_path/signal48", clear
-foreach year in  49 50 51 52 53 54 55 56 57 58 59 60 {
+foreach year in 46 47 49 50 51 52 53 54 55 56 57 58 59 60 {
 	append using "$temp_path/signal`year'"
 }
+xtset countyfips2000 year
 save "$temp_path/ITMTVdate", replace
 
 
@@ -169,6 +212,8 @@ save "$temp_path/ITMTVdate", replace
              Total |     40,471      100.00
 
 */
+
+
 
 /*********************************************************
 ******         merge DMA and ITM data     		**********
@@ -204,9 +249,12 @@ merge 1:m year countyfips using ../temp/ALlyearTV
 
 . tab year _m
 
+
            |              _merge
       year | master on  using onl  matched ( |     Total
 -----------+---------------------------------+----------
+      1946 |     3,117          0          0 |     3,117
+      1947 |     3,117          0          0 |     3,117
       1948 |     3,117          0          0 |     3,117 no ownership data
       1949 |     3,117          0          0 |     3,117 no ownership data
       1950 |        27          1      3,090 |     3,118 FIGURE THIS OUT?!?!?
