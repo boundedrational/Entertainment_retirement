@@ -405,7 +405,7 @@ foreach var in vote_CONG_REP_ vote_CONG_DEM_  {
 g REP_DEM_gap = vote_CONG_REP_ - vote_CONG_DEM_
 replace REP_DEM_gap = REP_DEM_gap * -1 if REP_DEM_gap<0
 
-*G&S restrict sample to counties with participation data in majority of years
+*G&S restrict sample to counties with participation data in majority of years between 1940-1972
 bys countyf: g missing_years = sum(vote_C==.) if year > 1939
 g GS_sample = (missing_years<8)
 replace GS_sample = 1 if missing_years == .
