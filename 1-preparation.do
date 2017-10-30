@@ -280,16 +280,19 @@ levelsof countyfips if _m!=3  & year == 1950, local(miss_match)
 foreach location of local miss_match{
 	drop if countyfips == `location'
 }
+drop _m
+
+
 ** Define TV expoure
 g DMA_access = year >= TVYEAR & TVYEAR!=.
 g ITM_access = ITM_station>0 & ITM_station!=.
 
 ** TV OWNERSHIP
 g tvhh = TVHH / TOTALHH
+
 ** missing counties are without tv signal according to magazine
 g TVHH_with0 = tvhh
 replace TVHH_with0 = 0 if year > 1952 & year<1958 & TVHH_with0 == .
-drop _m
 replace ITM_station = 0 if year<1940
 replace DMA_access = 0 if year<1940
 
@@ -502,7 +505,7 @@ foreach var in lpop medinc highschool  urban  medage ppl_sqm share_NW {
   forvalue year = 51/59 {
     g `var'_`year' = `diff_`var'' * (`year'-50) + `var'_50
   }
-  forvalue year = 60/72 {
+  forvalue year = 61/72 {
     g `var'_`year' = `diff_`var'' * (`year'-50) + `var'_50
   }
   forvalue year = 40/49 {
