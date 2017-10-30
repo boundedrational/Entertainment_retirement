@@ -502,6 +502,9 @@ foreach var in lpop medinc highschool  urban  medage ppl_sqm share_NW {
   forvalue year = 51/59 {
     g `var'_`year' = `diff_`var'' * (`year'-50) + `var'_50
   }
+  forvalue year = 60/72 {
+    g `var'_`year' = `diff_`var'' * (`year'-50) + `var'_50
+  }
   forvalue year = 40/49 {
     g `var'_`year' = `diff_`var'' * (`year'-50) + `var'_50
   }
