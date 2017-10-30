@@ -502,11 +502,12 @@ foreach var in lpop medinc highschool  urban  medage ppl_sqm share_NW {
   forvalue year = 51/59 {
     g `var'_`year' = `diff_`var'' * (`year'-50) + `var'_50
   }
-  forvalue year = 44/49 {
+  forvalue year = 40/49 {
     g `var'_`year' = `diff_`var'' * (`year'-50) + `var'_50
   }
 }
 reshape long lpop_ medinc_ highschool_  urban_  medage_ ppl_sqm_ share_NW_ , i(countyfips) j(year)
+replace year = year + 1900
 ** Dataset with demographics for 3,103 counties
 save ../output/controls, replace
 
