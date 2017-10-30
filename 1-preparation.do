@@ -408,9 +408,9 @@ replace REP_DEM_gap = REP_DEM_gap * -1 if REP_DEM_gap<0
 *G&S restrict sample to counties with participation data in majority of years between 1940-1972
 bys countyf: g missing_years = sum(vote_C==.) if year > 1939
 g GS_sample = (missing_years<8)
-replace GS_sample = 1 if missing_years == .
+replace GS_sample = 1 if missing_years == . & year > 1939
 unique countyfips if GS_sample==1
-* should have 3081 counties, but get 3083 matched counties (About 3200 voting data counties)
+* should have 3081 counties, but get 3203 counties here. Once matching to TV data have 3083 matched counties
 
 * dummy indicating years with presidential elections
 g presidential_year = (vote_P!=.)
