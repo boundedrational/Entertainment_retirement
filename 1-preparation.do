@@ -427,14 +427,15 @@ save ../output/vote_data, replace
 *********************************************************/
 
 * 1950 Census data - county info:
-* pop per mile^2, % urban,  median age, % high school, census regions
-use fips area totpop highschool  urban  medage using ../input/Replication/demo_50, clear
+* pop per mile^2, % urban,  median age, % high school, census regions, median inc
+use fips area totpop highschool  urban  medage medinc using ../input/Replication/demo_50, clear
 rename fips countyfips
+g lpop = ln(totpop)
 g ppl_sqm = totpop / area
-foreach var of varlist highschool  urban  medage ppl_sqm  {
+foreach var of varlist lpop highschool  urban  medage medinc ppl_sqm  {
 	rename `var' `var'_50
 }
-keep countyfips  highschool  urban  medage ppl_sqm
+keep countyfips  highschool  urban  medage ppl_sqm lpop medinc
 save ../temp/census1950, replace
 
 * add % white, census region
@@ -451,32 +452,61 @@ save ../temp/census1950, replace
 
 * 1960 data:
 * ln pop, median income
-use fips totpop medinc using ../input/Replication/demo_60, clear
+use fips totpop medinc  highschool pcturban area medage using ../input/Replication/demo_60, clear
 g lpop = ln(totpop)
+g ppl_sqm = totpop / area
 rename fips countyfips
-keep countyfips lpop medinc
-foreach var of varlist lpop medinc {
+rename pcturban urban
+keep countyfips lpop medinc highschool  urban  medage medinc ppl_sqm
+foreach var of varlist lpop highschool  urban  medage medinc ppl_sqm  {
 	rename `var' `var'_60
 }
+save ../temp/census1960, replace
+
+*  % non-white
+use fips  totpop whtot using "../input/Replication/1960 Census/DS0038/02896-0038-Data.dta", clear
+rename fips countyfips
+g share_NW_60 = 1-whtot/totpop
+keep countyfips  share_NW
+* some missing countyfips
+drop if countyfips == .
+merge 1:1 countyfips using ../temp/census1960
+* drop states
+drop if _m!=3
+drop _m
 save ../temp/census1960, replace
 
 merge 1:1  countyfips using ../temp/census1950
 /*
 
 
+
 Result                           # of obs.
 -----------------------------------------
-not matched                            61
-    from master                        54  (_merge==1)
+not matched                            37
+    from master                        30  (_merge==1)
     from using                          7  (_merge==2)
 
 matched                             3,103  (_merge==3)
 -----------------------------------------
 
 
+
 */
 
 drop if _m!=3
 drop _m
+
+foreach var in lpop medinc highschool  urban  medage ppl_sqm share_NW {
+  local diff_`var' = (`var'_60 - `var'_50)/10
+  forvalue year = 51/59 {
+    g `var'_`year' = `diff_`var'' * (`year'-50) + `var'_50
+  }
+  forvalue year = 44/49 {
+    g `var'_`year' = `diff_`var'' * (`year'-50) + `var'_50
+  }
+}
+reshape long lpop_ medinc_ highschool_  urban_  medage_ ppl_sqm_ share_NW_ , i(countyfips) j(year)
+** Dataset with demographics for 3,103 counties
 save ../output/controls, replace
 
