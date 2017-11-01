@@ -271,6 +271,7 @@ duplicates drop year countyfips, force
 
 ** add GS TV household data
 merge 1:m year countyfips using ../temp/ALlyearTV
+
 ** virginia cities w/o TV data (and a few other cty)
 /*
 
