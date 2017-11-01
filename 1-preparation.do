@@ -63,6 +63,7 @@ replace TVyearGroups = 2 if year(date2)< 1952 & year(date2)>1944
 replace TVyearGroups = 3 if year(date2)< 1970 & year(date2)>1951
 label def TVGroup 1 "First TV pre 1945" 2 "First TV 1945-1951" 3 "First TV 1952+"
 label value TVyearGroups TVGroup
+
 save ../temp/DMATVdate, replace
 
   **TV households
@@ -176,8 +177,9 @@ merge 1:m Station  using ../temp/data48
 foreach year in 46 47 {
   preserve
   drop if TV`year'!=1
-  keep countyfips ITM_signal ITM_station
-  collapse (max) ITM_signal (sum) ITM_station , by(countyfips)
+  keep countyfips ITM_signal ITM_station start_year
+  g TVYEAR_ITM = start_year if ITM_signal> - 50 & ITM_signal != .
+  collapse (max) ITM_signal (min) TVYEAR_ITM (sum) ITM_station , by(countyfips)
   g year = 1900 + `year'
   merge 1:1 countyfips2000 using ../temp/xwalk_cty90cty00
   ** 25 counties in AL & HI. No DMA info, hence drop them
@@ -192,8 +194,27 @@ foreach year in 46 47 49 50 51 52 53 54 55 56 57 58 59 60 {
 	append using "$temp_path/signal`year'"
 }
 xtset countyfips2000 year
-save "$temp_path/ITMTVdate", replace
 
+* generate year of first TV station
+g Hyear = year if ITM_station>0 & ITM_station!=.
+replace Hyear = TVYEAR_ITM if TVYEAR_ITM!=.
+bys countyfips: egen H2 = min(Hyear)
+g date_ITM = H2
+replace TVYEAR_ITM = date_ITM
+replace TVYEAR_ITM = 1946 if date_ITM < 1946
+replace TVYEAR_ITM = 1960 if date_ITM == . & ITM_station == 0
+
+drop H2 Hyear
+
+*define groups of counties by TV year ranges
+g TVyearGroups_ITM = 1 if date_ITM< 1945 & date_ITM>1930
+replace TVyearGroups_ITM = 2 if date_ITM< 1952 & date_ITM>1944
+replace TVyearGroups_ITM = 3 if date_ITM< 1970 & date_ITM>1951
+replace TVyearGroups_ITM = 3 if TVYEAR_ITM == 1960
+label value TVyearGroups TVGroup
+
+
+save "$temp_path/ITMTVdate", replace
 
 /*
 
@@ -288,12 +309,18 @@ foreach location of local miss_match{
 }
 drop _m
 
+**
+** TV signal
+**
 
 ** Define TV expoure
 g DMA_access = year >= TVYEAR & TVYEAR!=.
 g ITM_access = ITM_station>0 & ITM_station!=.
 
+
+**
 ** TV OWNERSHIP
+**
 g tvhh = TVHH / TOTALHH
 
 ** missing counties are without tv signal according to magazine
@@ -302,30 +329,12 @@ replace TVHH_with0 = 0 if year > 1952 & year<1958 & TVHH_with0 == .
 replace ITM_station = 0 if year<1940
 replace DMA_access = 0 if year<1940
 
-** generate variable that gives first TV year if TV running and first year with data if no TV
-bys countyfips2000 DMA_access: egen first_TVyear_DMA = min(year)
-bys countyfips2000 ITM_access: egen first_TVyear_ITM = min(year)
-
-* ATM all pre 45 TV channels are lumped in with 45-51. Data on pre 48 period still missing
-g TVpre_45_DMA = (first_TVyear_DMA<1945 & DMA_access==1)
-g TVpre_45_ITM = (first_TVyear_ITM<1945 & ITM_access==1)
-g TV_45_51_DMA = (first_TVyear_DMA>=1945 & first_TVyear_DMA<1952 & DMA_access==1)
-g TV_45_51_ITM = (first_TVyear_ITM>=1945 & first_TVyear_DMA<1952 & ITM_access==1)
-g TVpost_51_DMA = (first_TVyear_DMA>1951 & DMA_access==1)
-g TVpost_51_ITM = (first_TVyear_ITM>1951 & ITM_access==1)
-g year_TV_DMA = year - first_TVyear_DMA
-g year_TV_ITM = year - first_TVyear_ITM
-replace year_TV_DMA = 0 if year_TV_ITM<0
-replace year_TV_ITM = 0 if year_TV_DMA<0
-g GS_yearsTV = year - TVYEAR
-replace GS_yearsTV = 0 if GS_yearsTV<0
-
 save ../output/TVaccess, replace
 
-use ../output/TVaccess
-keep TVYEAR date2 ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year countyfips year_TV_ITM TVyearGroups
+use ../output/TVaccess, clear
+keep TVYEAR TVYEAR_ITM date_ITM date2 ITM_signal ITM_station DMA_access ITM_access year countyfips  TVyearGroups TVyearGroups_ITM
 
-reshape wide ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year_TV_ITM, j(year) i(countyfips)
+reshape wide ITM_signal ITM_station DMA_access ITM_access , j(year) i(countyfips)
 save ../output/TVwide, replace
 
 /*********************************************************
