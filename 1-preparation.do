@@ -443,7 +443,17 @@ replace presidential_year = 1 if year == 1900
 bys countyfips: egen helper = max(vote_C) if year == 1940
 bys countyfips: egen  ref_participation= max(helper)
 
-keep year TotalVotes_C countyfip vote_C presidential_year GS_sample REP_DEM_gap ref_participation
+** replace missings as mean of variable
+g ref_participation_missing = (ref_participation == .)
+g REP_DEM_gap_missing = (REP_DEM_gap == .)
+foreach var in REP_DEM_gap ref_participation {
+  egen `var'_bar = mean(`var')
+  replace `var' = `var'_bar  if `var' == .
+  drop `var'_bar
+}
+
+
+keep year TotalVotes_C countyfip vote_C presidential_year GS_sample REP_DEM_gap ref_participation ref_participation_missing REP_DEM_gap_missing
 save ../output/vote_data, replace
 
 /*********************************************************
