@@ -381,6 +381,7 @@ matched                             3,203  (_merge==3)
 
 drop if _m!=3
 drop _m
+drop if Countycod == 9999
 *rename variables
 foreach v of local turnout {
    local x : variable label `v'
@@ -413,8 +414,12 @@ reshape long vote_C TotalVotes_C vote_P vote_CONG_REP_ vote_CONG_DEM_  , i(count
 foreach var in vote_C vote_P vote_CONG_REP_ vote_CONG_DEM_  {
 	replace `var' = . if `var'>101
 }
+replace TotalVotes_C = . if TotalVotes_C == 9999999
+
 *sanity check
-g sanity = (vote_CONG_REP_+vote_CONG_DEM_<101)
+g sanity = (vote_CONG_REP_+vote_CONG_DEM_<102)
+replace sanity = 0 if (vote_CONG_REP_+vote_CONG_DEM_==0)
+
 foreach var in vote_CONG_REP_ vote_CONG_DEM_  {
 		replace `var' = . if sanity == 0
 }
@@ -430,6 +435,9 @@ unique countyfips if GS_sample==1
 
 * dummy indicating years with presidential elections
 g presidential_year = (vote_P!=.)
+replace presidential_year = 1 if year == 1908
+replace presidential_year = 1 if year == 1904
+replace presidential_year = 1 if year == 1900
 
 ** reference participation (1940)
 bys countyfips: egen helper = max(vote_C) if year == 1940
