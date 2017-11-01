@@ -57,9 +57,15 @@ gen date2 = date(DATE, "DMY")
 format date2 %td
 keep  DMAINDEX TVYEAR STATION date2
 duplicates drop DMAINDEX, force
+*define groups of counties by TV year ranges
+g TVyearGroups = 1 if year(date2)< 1945 & year(date2)>1930
+replace TVyearGroups = 2 if year(date2)< 1952 & year(date2)>1944
+replace TVyearGroups = 3 if year(date2)< 1970 & year(date2)>1951
+label def TVGroup 1 "First TV pre 1945" 2 "First TV 1945-1951" 3 "First TV 1952+"
+label value TVyearGroups TVGroup
 save ../temp/DMATVdate, replace
 
-**TV households
+  **TV households
 use "$input_path/Gentzkow data/TV set County Diffusion/22720-0002-Data.dta", clear
 g countyfips=STATEFP+CNTYFP
 destring countyfips, replace
@@ -160,7 +166,7 @@ replace start_year = start_year + 1 if StartMonth>3
 keep City Station Channel start_year
 g TV47 = (start_year<=1947)
 g TV46 = (start_year<=1946)
-drop if start_year==1949
+drop if start_year == 1949
 replace City = trim(City)
 rename City City_xlsx
 rename Channel Channel_xlsx
@@ -317,12 +323,9 @@ replace GS_yearsTV = 0 if GS_yearsTV<0
 save ../output/TVaccess, replace
 
 use ../output/TVaccess
-keep TVYEAR date2 ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year countyfips year_TV_ITM
+keep TVYEAR date2 ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year countyfips year_TV_ITM TVyearGroups
 
 reshape wide ITM_signal ITM_station DMA_access ITM_access GS_yearsTV year_TV_ITM, j(year) i(countyfips)
-g group = 1 if year(date2) < 1945
-replace group = 2 if year(date2)  > 1944 & year(date2)  < 1952
-replace group = 3 if year(date2)  >1951 & year(date2) !=.
 save ../output/TVwide, replace
 
 /*********************************************************
