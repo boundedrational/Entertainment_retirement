@@ -367,21 +367,22 @@ use  V1-V3 `turnout' `DEM_REP' `total_vote' using "../input/Replication/ICPSR_08
 * convert ICPSR to FIPS
 rename V3 Countycod
 rename V1 STATEICP
+drop if Countycod == 9999
+
 merge 1:1 STATEICP Countycod using $data/lookup/CTY&STATE_ICPSR_FIPS
 /*
 Result                           # of obs.
------------------------------------------
-not matched                           216
-    from master                       190  (_merge==1)
-    from using                         26  (_merge==2)
+    -----------------------------------------
+    not matched                           200
+        from master                       174  (_merge==1)
+        from using                         26  (_merge==2)
 
-matched                             3,203  (_merge==3)
------------------------------------------
+    matched                             3,203  (_merge==3)
+    -----------------------------------------
 */
 
 drop if _m!=3
 drop _m
-drop if Countycod == 9999
 *rename variables
 foreach v of local turnout {
    local x : variable label `v'
@@ -475,7 +476,7 @@ save ../temp/census1950, replace
 * add % white, census region
 use fips region1 totpop nwmtot fbwmtot nwftot fbwftot pctnonw using "../input/Replication/1950 Census/DS0035/02896-0035-Data.dta", clear
 rename fips countyfips
-g share_NW_50 = 1-(nwmtot+ fbwmtot +nwftot+ fbwftot)/totpop
+g share_NW_50 =( 1-(nwmtot+ fbwmtot +nwftot+ fbwftot)/totpop) * 100
 keep countyfips  share_NW region1
 * some missing countyfips
 drop if countyfips == .
@@ -500,7 +501,7 @@ save ../temp/census1960, replace
 *  % non-white
 use fips  totpop whtot using "../input/Replication/1960 Census/DS0038/02896-0038-Data.dta", clear
 rename fips countyfips
-g share_NW_60 = 1-whtot/totpop
+g share_NW_60 = (1-whtot/totpop) * 100
 keep countyfips  share_NW
 * some missing countyfips
 drop if countyfips == .
