@@ -84,42 +84,102 @@ save ../temp/ALlyearTV, replace
 **
 **
 
+
+/*-------------------------
+  To Do:
+     1. Use stations that were operational on the date of factbook publication (April that year)
+     2. Calculate signal strength based on F(90,90)
+-------------------------*/
+
 local threshold = -50
 ** query output
 cd "$input_path"
 foreach year in  48 49 50 51 52 53 54 55 56 57 58 59 60 {
-	cd "$input_path"
-	import delimited using ../PrepFactbooks/19`year'/query-out.txt	, clear
-	if `year' > 53 {
-		g ITM_signal = (10*log(v14 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
-		g ITM_station = (ITM_signal>`threshold')
-		rename v11 countyfips2000
-    rename v12 Station
-    rename v13 city_str
-	}
-	if `year' <= 53 {
-	g ITM_signal = (10*log(v17 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
-	g ITM_station = (ITM_signal>`threshold')
-	rename v14 countyfips2000
-  rename v15 Station
-  rename v16 city_str
-	}
-  g Channel = substr(city_str,-2,2)
-  g str_len = strlen(city_str)
-  g City = substr(city_str,1,str_len-2)
-  destring Channel, replace
-  replace City = trim(City)
-  if `year' == 48 {
-    save ../temp/data48, replace
-  }
-	keep countyfips ITM_signal ITM_station
+  local threshold = -50
+  local year = 48
+  cd "$input_path"
+  import delimited using ../PrepFactbooks/19`year'/query-out.txt  , clear
 
-	collapse (max) ITM_signal (sum) ITM_station , by(countyfips)
-	g year = 1900 + `year'
+  * re-name variables
+  * V1 is distance
+  rename v1 distance
+  * V2 is distance
+  rename v2 terraindelta
+  * V3 is distance
+  rename v3 freespaceloss
+  * V4 is 9090 signal_loss
+  rename v4 loss9090
+  * V5 is 9050 signalloss
+  rename v5 loss9050
+  * V6 is 5090 signal loss
+  rename v6 loss5090
+  * V7 is 9090 signal loss
+  rename v7 loss5050
+  * V8 is transmitter lat
+  rename v8 translat
+  * V9 is transmitter_long
+  rename v9 translong
+  * V10 is receiver_lat
+ rename v10 reclat
+  * V11 is receiver_long
+ rename v11 reclong
+  * V12 is frequency
+ rename v12 freq
+  * V13 is height
+ rename v13 height
+  * V14 is FIPS
+ rename v14  fips
+  * V15 is station
+ rename v15 station
+  * V16 is city and channel
+ rename v16 citychannel
+  * V17 is power
+ rename v17 power
+/*
+	*import delimited using ../PrepFactbooks/19`year'/ITM`year'_out.csv	, clear
+
+  * drop TV stations that are set up after April
+  g TVDATE_ITM = date(startdate,"MDY", 1999)
+  g D_helper = subinstr(startdate,"/00/","/",.) if TVDATE_ITM == .
+  g D2 =  monthly(D_helper,"MY", 1999)
+  replace TVDATE_ITM = dofm(D2) if TVDATE_ITM == .
+  drop D_helper D2
+  format TVDATE_ITM %td
+  drop if month(TVDATE_ITM) >= 4 & year(TVDATE_ITM)==`year'+1900
+*/
+  *define TV availability
+	g ITM_signal = (10*log(power * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - loss9090 - 54.2
+  * for free space signal strength use formula for signal strength from signal loss:
+  * power * 1000 / 4 / 3.14 = (Electrical field strength (V/M) * distance) ^2 /(impedimence of free space)
+  *V/m= 10^((dBμVm-120)/20)
+  * Hence dBμVm = (ln(power * 1000 / 4 / 3.14) + 12*ln(10) + ln(impedimence of free space) - 2*ln(distance) )/ln(10)*10
+  g freeITM_signal = (10*log(power * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - freespaceloss - 54.2
+	g ITM_station = (ITM_signal>`threshold')
+  g freeITM_station = (freeITM_signal>`threshold')
+	rename fips countyfips2000
+
+  g channel = substr(citychannel,-2,2)
+  g str_len = strlen(citychannel)
+  g city = substr(citychannel,1,str_len-2)
+  destring channel, replace
+  replace city = trim(city)
+
+  * only keep locations with a channel (don't have all counties in the data in the first place)
+  drop if ITM_station == 0 & freeITM_station == 0
+
+  *dataset at cty - year - channel level
+  keep year countyfips2000 county state station channel city startdate   ITM_station ITM_signal freeITM*
+  save ../temp/TVsignal_ITMtic`year', replace
+
+  *dataset at cty - year level
+	keep  year countyfips  ITM_signal ITM_station
+	collapse  (max) ITM_signal (sum) ITM_station , by(countyfips)
+  g year = 1900 + `year'
 
 	merge 1:1 countyfips2000 using ../temp/xwalk_cty90cty00
-	** 25 counties in AL & HI. No DMA info, hence drop them
+  * drop all empty counties
 	drop if _m!=3
+  drop _m
 	save "$temp_path/signal`year'", replace
 }
 /*
