@@ -23,6 +23,21 @@ global datum = subinstr(c(current_date)," ","",.)
 
 
 
+/*********************************************************
+******         CPS - SSA data         **********
+*********************************************************/
+
+*Autor
+local raw_data "data.s9039.txt"
+local dict "s9039.dct"
+cd ${data}/CPS73-SSA/Autor
+infile using `dict', using (`raw_data') clear
+save matched_data, replace
+
+*IPUMS ADF
+cd ${data}/CPS73-SSA/IPUMS
+do cps_00017.do
+save adf, replace
 
 /*********************************************************
 ******         read in DMA data     		**********
