@@ -26,10 +26,12 @@ global datum = subinstr(c(current_date)," ","",.)
 /*********************************************************
 ******         CPS - SSA data         **********
 *********************************************************/
-
+/*
 *Autor
 local raw_data "data.s9039.txt"
+*local dict "s9039.dct"
 local dict "s9039.dct"
+
 cd ${data}/CPS73-SSA/Autor
 infile using `dict', using (`raw_data') clear
 save matched_data, replace
@@ -38,7 +40,7 @@ save matched_data, replace
 cd ${data}/CPS73-SSA/IPUMS
 do cps_00017.do
 save adf, replace
-
+*/
 /*********************************************************
 ******         read in DMA data     		**********
 *********************************************************/
@@ -72,12 +74,6 @@ gen date2 = date(DATE, "DMY")
 format date2 %td
 keep  DMAINDEX TVYEAR STATION date2
 duplicates drop DMAINDEX, force
-*define groups of counties by TV year ranges
-g TVyearGroups = 1 if year(date2)< 1945 & year(date2)>1930
-replace TVyearGroups = 2 if year(date2)< 1952 & year(date2)>1944
-replace TVyearGroups = 3 if year(date2)< 1970 & year(date2)>1951
-label def TVGroup 1 "First TV pre 1945" 2 "First TV 1945-1951" 3 "First TV 1952+"
-label value TVyearGroups TVGroup
 
 save ../temp/DMATVdate, replace
 
@@ -87,235 +83,15 @@ g countyfips=STATEFP+CNTYFP
 destring countyfips, replace
 keep countyfips YEAR TVHH TOTALHH
 rename YEAR year
+
+reshape wide  TVHH TOTALHH  , i(countyfips) j(year)
 save ../temp/ALlyearTV, replace
 
 /*********************************************************
 ******         read in ITM signal strength     ***********
 *********************************************************/
 
-**
-**
-**		DEFINE SIGNAL THRESHOLD
-**
-**
-
-
-/*-------------------------
-  To Do:
-     1. Use stations that were operational on the date of factbook publication (April that year)
-     2. Calculate signal strength based on F(90,90)
--------------------------*/
-
-local threshold = -50
-** query output
-cd "$input_path"
-foreach year in  48 49 50 51 52 53 54 55 56 57 58 59 60 {
-  local threshold = -50
-  local year = 48
-  cd "$input_path"
-  import delimited using ../PrepFactbooks/19`year'/query-out.txt  , clear
-
-  * re-name variables
-  * V1 is distance
-  rename v1 distance
-  * V2 is distance
-  rename v2 terraindelta
-  * V3 is distance
-  rename v3 freespaceloss
-  * V4 is 9090 signal_loss
-  rename v4 loss9090
-  * V5 is 9050 signalloss
-  rename v5 loss9050
-  * V6 is 5090 signal loss
-  rename v6 loss5090
-  * V7 is 9090 signal loss
-  rename v7 loss5050
-  * V8 is transmitter lat
-  rename v8 translat
-  * V9 is transmitter_long
-  rename v9 translong
-  * V10 is receiver_lat
- rename v10 reclat
-  * V11 is receiver_long
- rename v11 reclong
-  * V12 is frequency
- rename v12 freq
-  * V13 is height
- rename v13 height
-  * V14 is FIPS
- rename v14  fips
-  * V15 is station
- rename v15 station
-  * V16 is city and channel
- rename v16 citychannel
-  * V17 is power
- rename v17 power
-/*
-	*import delimited using ../PrepFactbooks/19`year'/ITM`year'_out.csv	, clear
-
-  * drop TV stations that are set up after April
-  g TVDATE_ITM = date(startdate,"MDY", 1999)
-  g D_helper = subinstr(startdate,"/00/","/",.) if TVDATE_ITM == .
-  g D2 =  monthly(D_helper,"MY", 1999)
-  replace TVDATE_ITM = dofm(D2) if TVDATE_ITM == .
-  drop D_helper D2
-  format TVDATE_ITM %td
-  drop if month(TVDATE_ITM) >= 4 & year(TVDATE_ITM)==`year'+1900
-*/
-  *define TV availability
-	g ITM_signal = (10*log(power * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - loss9090 - 54.2
-  * for free space signal strength use formula for signal strength from signal loss:
-  * power * 1000 / 4 / 3.14 = (Electrical field strength (V/M) * distance) ^2 /(impedimence of free space)
-  *V/m= 10^((dBμVm-120)/20)
-  * Hence dBμVm = (ln(power * 1000 / 4 / 3.14) + 12*ln(10) + ln(impedimence of free space) - 2*ln(distance) )/ln(10)*10
-  g freeITM_signal = (10*log(power * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - freespaceloss - 54.2
-	g ITM_station = (ITM_signal>`threshold')
-  g freeITM_station = (freeITM_signal>`threshold')
-	rename fips countyfips2000
-
-  g channel = substr(citychannel,-2,2)
-  g str_len = strlen(citychannel)
-  g city = substr(citychannel,1,str_len-2)
-  destring channel, replace
-  replace city = trim(city)
-
-  * only keep locations with a channel (don't have all counties in the data in the first place)
-  drop if ITM_station == 0 & freeITM_station == 0
-
-  *dataset at cty - year - channel level
-  keep year countyfips2000 county state station channel city startdate   ITM_station ITM_signal freeITM*
-  save ../temp/TVsignal_ITMtic`year', replace
-
-  *dataset at cty - year level
-	keep  year countyfips  ITM_signal ITM_station
-	collapse  (max) ITM_signal (sum) ITM_station , by(countyfips)
-  g year = 1900 + `year'
-
-	merge 1:1 countyfips2000 using ../temp/xwalk_cty90cty00
-  * drop all empty counties
-	drop if _m!=3
-  drop _m
-	save "$temp_path/signal`year'", replace
-}
-/*
-foreach year in 54 55 56 57{
-	foreach subfolder in I II III {
-		cd "$input_path"
-		  capture confirm file ../PrepFactbooks/19`year'/`subfolder'/query-out.txt
-		  if _rc==0 {
-		   	import delimited using ../PrepFactbooks/19`year'/`subfolder'/query-out.txt	, clear
-		   	g ITM_signal = (10*log(v14 * 1000 / 4 / 3.14) + 10*log(10)*13 )  / log(10) - v1 - 54.2
-		   	g ITM_station = (ITM_signal>`threshold')
-		   	rename v11 countyfips2000
-		   	keep countyfips ITM_signal ITM_station
-		   	collapse (max) ITM_signal (sum) ITM_station , by(countyfips)
-		   	g year = 1900 + `year'
-
-		   	merge 1:1 countyfips2000 using ../temp/xwalk_cty90cty00
-		   	** 25 counties in AL & HI. No DMA info, hence drop them
-		   	drop if _m!=3
-		   	save "$temp_path/signal`year'_`subfolder'", replace
-
-		   }
-		  else {
-		    display "The file 19`year'/`subfolder'/query-out.txt does not exist"
-		  }
-	}
-}
-
-foreach year in   54 55 56 57 {
-	use "$temp_path/signal`year'_I"
-	foreach subfolder in II III {
-		cap append "$temp_path/signal`year'_`subfolder'"
-	}
-	save "$temp_path/signal`year'", replace
-}
-*/
-
-/*********************************************************
-******         infer pre 1948 TV data       **********
-*********************************************************/
-
-import excel using ../PrepFactbooks/1948/FB48.xlsx, clear firstrow
-g start_year = 1900 + StartYear
-replace start_year = start_year + 1 if StartMonth>3
-keep City Station Channel start_year
-g TV47 = (start_year<=1947)
-g TV46 = (start_year<=1946)
-drop if start_year == 1949
-replace City = trim(City)
-rename City City_xlsx
-rename Channel Channel_xlsx
-
-merge 1:m Station  using ../temp/data48
-
-foreach year in 46 47 {
-  preserve
-  drop if TV`year'!=1
-  keep countyfips ITM_signal ITM_station start_year
-  g TVYEAR_ITM = start_year if ITM_signal> - 50 & ITM_signal != .
-  collapse (max) ITM_signal (min) TVYEAR_ITM (sum) ITM_station , by(countyfips)
-  g year = 1900 + `year'
-  merge 1:1 countyfips2000 using ../temp/xwalk_cty90cty00
-  ** 25 counties in AL & HI. No DMA info, hence drop them
-  drop if _m!=3
-  save "$temp_path/signal`year'", replace
-  restore
-}
-
-
-use  "$temp_path/signal48", clear
-foreach year in 46 47 49 50 51 52 53 54 55 56 57 58 59 60 {
-	append using "$temp_path/signal`year'"
-}
-xtset countyfips2000 year
-
-* generate year of first TV station
-g Hyear = year if ITM_station>0 & ITM_station!=.
-replace Hyear = TVYEAR_ITM if TVYEAR_ITM!=.
-bys countyfips: egen H2 = min(Hyear)
-g date_ITM = H2
-replace TVYEAR_ITM = date_ITM
-replace TVYEAR_ITM = 1946 if date_ITM < 1946
-replace TVYEAR_ITM = 1960 if date_ITM == . & ITM_station == 0
-
-drop H2 Hyear
-
-*define groups of counties by TV year ranges
-g TVyearGroups_ITM = 1 if date_ITM< 1945 & date_ITM>1930
-replace TVyearGroups_ITM = 2 if date_ITM< 1952 & date_ITM>1944
-replace TVyearGroups_ITM = 3 if date_ITM< 1970 & date_ITM>1951
-replace TVyearGroups_ITM = 3 if TVYEAR_ITM == 1960
-label value TVyearGroups TVGroup
-
-
-save "$temp_path/ITMTVdate", replace
-
-/*
-
-. tab year
-
-              year |      Freq.     Percent        Cum.
-       ------------+-----------------------------------
-              1948 |      3,118        7.70        7.70
-              1949 |      3,118        7.70       15.41
-              1950 |      3,118        7.70       23.11
-              1951 |      3,118        7.70       30.82
-              1952 |      3,118        7.70       38.52
-              1953 |      3,118        7.70       46.23
-              1954 |      3,109        7.68       53.91
-              1955 |      3,109        7.68       61.59
-              1956 |      3,109        7.68       69.27
-              1957 |      3,109        7.68       76.95
-              1958 |      3,109        7.68       84.64
-              1959 |      3,109        7.68       92.32
-              1960 |      3,109        7.68      100.00
-       ------------+-----------------------------------
-             Total |     40,471      100.00
-
-*/
-
-
+do "../code/1.1 - ITM.do"
 
 /*********************************************************
 ******         merge DMA and ITM data     		**********
@@ -323,76 +99,63 @@ save "$temp_path/ITMTVdate", replace
 
 ** ITM data
 use  ../temp/ITMTVdate, clear
-drop _m
 
 ** add ID for DMA
 merge m:1 DMAINDEX using ../temp/DMATVdate
 /*
 
 Result                           # of obs.
- -----------------------------------------
- not matched                             1
-     from master                         0  (_merge==1)
-     from using                          1  (_merge==2)
+-----------------------------------------
+not matched                             5
+    from master                         0  (_merge==1)
+    from using                          5  (_merge==2)
 
- matched                            40,471  (_merge==3)
- -----------------------------------------
+matched                             3,049  (_merge==3)
+-----------------------------------------
 
 */
 drop if _m!=3
 drop _merge
+
 ** county split implies there are two observations for a 1990 county
-duplicates drop year countyfips, force
+drop if countyfips2000 == 8014
+*duplicates drop year countyfips, force
 
 ** add GS TV household data
-merge 1:m year countyfips using ../temp/ALlyearTV
+merge 1:1 countyfips using ../temp/ALlyearTV
 
 ** virginia cities w/o TV data (and a few other cty)
 /*
+Result                           # of obs.
+-----------------------------------------
+not matched                            75
+    from master                        14  (_merge==1) 4012 32510 35006  and virginia cities
+    from using                         61  (_merge==2) some of the counties that get TV after 1960 and a few others
 
-. tab year _m
-
-
-           |              _merge
-      year | master on  using onl  matched ( |     Total
------------+---------------------------------+----------
-      1946 |     3,117          0          0 |     3,117
-      1947 |     3,117          0          0 |     3,117
-      1948 |     3,117          0          0 |     3,117 no ownership data
-      1949 |     3,117          0          0 |     3,117 no ownership data
-      1950 |        27          1      3,090 |     3,118 FIGURE THIS OUT?!?!?
-      1951 |     3,117          0          0 |     3,117 no ownership data
-      1952 |     3,117          0          0 |     3,117 no ownership data
-      1953 |     1,296          0      1,821 |     3,117
-      1954 |       657          0      2,451 |     3,108
-      1955 |       382          0      2,726 |     3,108
-      1956 |        74          0      3,034 |     3,108
-      1957 |        45          0      3,063 |     3,108
-      1958 |       349          0      2,759 |     3,108
-      1959 |        51          0      3,057 |     3,108
-      1960 |        20          1      3,088 |     3,109 FIGURE THIS OUT?!?!?
------------+---------------------------------+----------
-     Total |    15,369          2     25,089 |    40,460
-
-
-1960 _m==1 additionally to 1950: countyfips 2000, 6003, 8079, 30111, 48261, 48269, 48301
+matched                             3,034  (_merge==3)
+-----------------------------------------
 
 */
+drop if _m == 2
 * drop missed match
-levelsof countyfips if _m!=3  & year == 1950, local(miss_match)
-foreach location of local miss_match{
-	drop if countyfips == `location'
-}
-drop _m
+rename _m no_ownershipData
 
 **
 ** TV signal
 **
 
+
+
+reshape long ITM_signal LoS_station ITM_station CATV_ChannelCount CATV_count TVHH TOTALHH    , i(countyfips) j(year)
 ** Define TV expoure
 g DMA_access = year >= TVYEAR & TVYEAR!=.
 g ITM_access = ITM_station>0 & ITM_station!=.
+replace ITM_access = 1 if CATV_count >0 & CATV_count!=.
 
+* fill in missing observations
+foreach var in LoS_station ITM_station {
+  replace `var' = 0 if `var' ==.
+}
 
 **
 ** TV OWNERSHIP
@@ -401,136 +164,21 @@ g tvhh = TVHH / TOTALHH
 
 ** missing counties are without tv signal according to magazine
 g TVHH_with0 = tvhh
-replace TVHH_with0 = 0 if year > 1952 & year<1958 & TVHH_with0 == .
-replace ITM_station = 0 if year<1940
-replace DMA_access = 0 if year<1940
-
+replace TVHH_with0 = 0 if year > 1952 & year<1958 & TVHH_with0 == . & no_ownershipData==3
 save ../output/TVaccess, replace
-
 use ../output/TVaccess, clear
-keep TVYEAR TVYEAR_ITM date_ITM date2 ITM_signal ITM_station DMA_access ITM_access year countyfips  TVyearGroups TVyearGroups_ITM
+keep TVYEAR TVYEAR_ITM  ITM_signal ITM_station DMA_access ITM_access LoS_station CATV_* year countyfips  TVyearGroups TVyearGroups_ITM
 
-reshape wide ITM_signal ITM_station DMA_access ITM_access , j(year) i(countyfips)
+reshape wide ITM_signal ITM_station DMA_access ITM_access LoS CATV*, j(year) i(countyfips)
 save ../output/TVwide, replace
+
+
 
 /*********************************************************
 ******         read in voting data     		**********
 *********************************************************/
 
-* Is turnout relative to voters or population? Latter is what G&S use
-
-import excel using "$data/lookup/CTY&STATE_ICPSR_FIPS.xls", firstrow clear
-drop in 1
-keep State County STATEICP STATEFIPS County Countycod FIPScty
-order State County STATEICP STATEFIPS County Countycod FIPScty
-*drop indian reservations
-drop if FIPScty >900
-g countyfips = STATEFIPS *1000  + FIPScty
-save $data/lookup/CTY&STATE_ICPSR_FIPS, replace
-
-
-** ICPSR 3
-use  "../input/Replication/voting ICPSR 3/00013-0003-Data.dta", clear
-g countyfip = int(V5/10)
-rename V2 state
-
-** ICPSR 8611
-local turnout "V327 V335 V349 V356 V369 V377 V384 V392 V401 V408 V417 V427 V433 V442 V451 V457 V467 V476 V482 V489 V497 V503 V510 V520 V526 V535 V545 V551 V558 V566 V572 V579 V585 V592 V598 V603 V608 V613 V618 V623 V628 V633 V638 V643 V648 V653 V658 V663 V669 V674 V679 V684 V689"
-local total_vote "V320 V326 V334 V341 V348 V355 V362 V368 V376 V383 V391 V400 V407 V416 V426 V432 V441 V450 V456 V466 V475 V481 V488 V496 V502 V509 V519 V525 V534 V544 V550 V557 V565 V571 V578 V584 V591 V597 V602 V607 V612 V617 V622 V627 V632 V637 V642 V647 V652 V657 V662 V668 V673 V678 V683 V688"
-local DEM_REP "V317 V322 V324 V328 V330 V336 V343 V345 V350 V352 V357 V364 V370 V372 V378 V385 V387 V393 V395 V402 V409 V411 V418 V420 V428 V434 V436 V443 V445 V452 V458 V460 V468 V470 V477 V483 V490 V498 V504 V511 V513 V521 V527 V529 V536 V538 V546 V552 V559 V567 V569 V573 V580 V582 V586 V589 V593 V599 V604 V609 V614 V619 V624 V629 V634 V639 V644 V649 V654 V659 V664 V670 V675 V680 V685 V318 V323 V329 V331 V337 V344 V351 V358 V365 V371 V373 V379 V386 V394 V396 V403 V410 V412 V419 V421 V429 V435 V437 V444 V453 V459 V461 V469 V471 V478 V484 V491 V492 V499 V505 V512 V514 V522 V528 V530 V537 V539 V547 V548 V553 V560 V561 V568 V574 V575 V581 V587 V594 V600 V605 V610 V615 V620 V625 V630 V635 V640 V645 V650 V655 V660 V665 V671 V676 V681 V686"
-use  V1-V3 `turnout' `DEM_REP' `total_vote' using "../input/Replication/ICPSR_08611/DS0001/08611-0001-Data.dta", clear
-* convert ICPSR to FIPS
-rename V3 Countycod
-rename V1 STATEICP
-drop if Countycod == 9999
-
-merge 1:1 STATEICP Countycod using $data/lookup/CTY&STATE_ICPSR_FIPS
-/*
-Result                           # of obs.
-    -----------------------------------------
-    not matched                           200
-        from master                       174  (_merge==1)
-        from using                         26  (_merge==2)
-
-    matched                             3,203  (_merge==3)
-    -----------------------------------------
-*/
-
-drop if _m!=3
-drop _m
-*rename variables
-foreach v of local turnout {
-   local x : variable label `v'
-   local name_sub = substr("`x'",6,1)
-   local year_sub = substr("`x'",1,4)
-   di "vote_`name_sub'`year_sub'"
-   rename `v' vote_`name_sub'`year_sub'
-}
-foreach v of local total_vote {
-   local x : variable label `v'
-   local name_sub = substr("`x'",6,1)
-   local year_sub = substr("`x'",1,4)
-   di "TotalVotes_`name_sub'`year_sub'"
-   rename `v' TotalVotes_`name_sub'`year_sub'
-}
-foreach v of local DEM_REP {
-   local x : variable label `v'
-   local name_sub = substr("`x'",6,9)
-   local year_sub = substr("`x'",1,4)
-   local name_sub = subinstr("`name_sub'"," ","_",.)
-   local name_sub = subinstr("`name_sub'","-","2",.)
-
-   di "vote_`name_sub'`year_sub'"
-   rename `v' vote_`name_sub'`year_sub'
-}
-drop vote_PRES* vote_CONG_DEM2* vote_CONG_REP2* TotalVotes_P*
-reshape long vote_C TotalVotes_C vote_P vote_CONG_REP_ vote_CONG_DEM_  , i(countyfips) j(year)
-
-* missings are coded as strange values (around 999.9), also set participation > 100%
-foreach var in vote_C vote_P vote_CONG_REP_ vote_CONG_DEM_  {
-	replace `var' = . if `var'>101
-}
-replace TotalVotes_C = . if TotalVotes_C == 9999999
-
-*sanity check
-g sanity = (vote_CONG_REP_+vote_CONG_DEM_<102)
-replace sanity = 0 if (vote_CONG_REP_+vote_CONG_DEM_==0)
-
-foreach var in vote_CONG_REP_ vote_CONG_DEM_  {
-		replace `var' = . if sanity == 0
-}
-g REP_DEM_gap = vote_CONG_REP_ - vote_CONG_DEM_
-replace REP_DEM_gap = REP_DEM_gap * -1 if REP_DEM_gap<0
-
-*G&S restrict sample to counties with participation data in majority of years between 1940-1972
-bys countyf: g missing_years = sum(vote_C==.) if year > 1939
-g GS_sample = (missing_years<8)
-replace GS_sample = 1 if missing_years == . & year > 1939
-unique countyfips if GS_sample==1
-* should have 3081 counties, but get 3203 counties here. Once matching to TV data have 3083 matched counties
-
-* dummy indicating years with presidential elections
-g presidential_year = (vote_P!=.)
-replace presidential_year = 1 if year == 1908
-replace presidential_year = 1 if year == 1904
-replace presidential_year = 1 if year == 1900
-
-** reference participation (1940)
-bys countyfips: egen helper = max(vote_C) if year == 1940
-bys countyfips: egen  ref_participation= max(helper)
-
-** replace missings as mean of variable
-g ref_participation_missing = (ref_participation == .)
-g REP_DEM_gap_missing = (REP_DEM_gap == .)
-foreach var in REP_DEM_gap ref_participation {
-  egen `var'_bar = mean(`var')
-  replace `var' = `var'_bar  if `var' == .
-  drop `var'_bar
-}
-
-
-keep year TotalVotes_C countyfip vote_C presidential_year GS_sample REP_DEM_gap ref_participation ref_participation_missing REP_DEM_gap_missing
-save ../output/vote_data, replace
+do "../code/1.1 - voting.do"
 
 /*********************************************************
 ******         controls    		**********
