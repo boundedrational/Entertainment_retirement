@@ -98,81 +98,80 @@ do "../code/1.1 - ITM.do"
 *********************************************************/
 
 ** ITM data
-use  ../temp/ITMTVdate, clear
+* generates datasets with TV information for each county. Several specifications are run
 
-** add ID for DMA
-merge m:1 DMAINDEX using ../temp/DMATVdate
-/*
+foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 signal90904-20 signal90904-50 {
+  import delimited  using ../output/TVsignal_ITM_`spec', clear case(preserve)
+  ** add ID for DMA
+  merge m:1 DMAINDEX using ../temp/DMATVdate
+  /*
 
-Result                           # of obs.
------------------------------------------
-not matched                             5
-    from master                         0  (_merge==1)
-    from using                          5  (_merge==2)
+  Result                           # of obs.
+  -----------------------------------------
+  not matched                             5
+      from master                         0  (_merge==1)
+      from using                          5  (_merge==2)
 
-matched                             3,049  (_merge==3)
------------------------------------------
+  matched                             3,049  (_merge==3)
+  -----------------------------------------
 
-*/
-drop if _m!=3
-drop _merge
+  */
+  drop if _m!=3
+  drop _merge
 
-** county split implies there are two observations for a 1990 county
-drop if countyfips2000 == 8014
-*duplicates drop year countyfips, force
+  ** county split implies there are two observations for a 1990 county
+  drop if countyfips2000 == 8014
+  *duplicates drop year countyfips, force
 
-** add GS TV household data
-merge 1:1 countyfips using ../temp/ALlyearTV
+  ** add GS TV household data
+  merge 1:1 countyfips using ../temp/ALlyearTV
 
-** virginia cities w/o TV data (and a few other cty)
-/*
-Result                           # of obs.
------------------------------------------
-not matched                            75
-    from master                        14  (_merge==1) 4012 32510 35006  and virginia cities
-    from using                         61  (_merge==2) some of the counties that get TV after 1960 and a few others
+  ** virginia cities w/o TV data (and a few other cty)
+  /*
+  Result                           # of obs.
+  -----------------------------------------
+  not matched                            75
+      from master                        14  (_merge==1) 4012 32510 35006  and virginia cities
+      from using                         61  (_merge==2) some of the counties that get TV after 1960 and a few others
 
-matched                             3,034  (_merge==3)
------------------------------------------
+  matched                             3,034  (_merge==3)
+  -----------------------------------------
 
-*/
-drop if _m == 2
-* drop missed match
-rename _m no_ownershipData
+  */
+  drop if _m == 2
+  * drop missed match
+  rename _m no_ownershipData
 
-**
-** TV signal
-**
+  **
+  ** TV signal
+  **
 
+  reshape long ITM_signal LoS_station ITM_station CATV_ChannelCount CATV_count TVHH TOTALHH    , i(countyfips) j(year)
+  ** Define TV expoure
+  g DMA_access = year >= TVYEAR & TVYEAR!=.
+  g ITM_access = ITM_station>0 & ITM_station!=.
+  replace ITM_access = 1 if CATV_count >0 & CATV_count!=.
 
+  * fill in missing observations
+  foreach var in LoS_station ITM_station {
+    replace `var' = 0 if `var' ==.
+  }
 
-reshape long ITM_signal LoS_station ITM_station CATV_ChannelCount CATV_count TVHH TOTALHH    , i(countyfips) j(year)
-** Define TV expoure
-g DMA_access = year >= TVYEAR & TVYEAR!=.
-g ITM_access = ITM_station>0 & ITM_station!=.
-replace ITM_access = 1 if CATV_count >0 & CATV_count!=.
+  **
+  ** TV OWNERSHIP
+  **
+  g tvhh = TVHH / TOTALHH
 
-* fill in missing observations
-foreach var in LoS_station ITM_station {
-  replace `var' = 0 if `var' ==.
+  ** missing counties are without tv signal according to magazine
+  g TVHH_with0 = tvhh
+  replace TVHH_with0 = 0 if year > 1952 & year<1958 & TVHH_with0 == . & no_ownershipData==3
+  save ../output/TVaccess, replace
+  use ../output/TVaccess, clear
+  keep TVYEAR TVYEAR_ITM  ITM_signal ITM_station DMA_access ITM_access LoS_station CATV_* year countyfips  TVyearGroups TVyearGroups_ITM
+
+  reshape wide ITM_signal ITM_station DMA_access ITM_access LoS CATV*, j(year) i(countyfips)
+  save ../output/TVwide_`spec', replace
 }
-
-**
-** TV OWNERSHIP
-**
-g tvhh = TVHH / TOTALHH
-
-** missing counties are without tv signal according to magazine
-g TVHH_with0 = tvhh
-replace TVHH_with0 = 0 if year > 1952 & year<1958 & TVHH_with0 == . & no_ownershipData==3
-save ../output/TVaccess, replace
-use ../output/TVaccess, clear
-keep TVYEAR TVYEAR_ITM  ITM_signal ITM_station DMA_access ITM_access LoS_station CATV_* year countyfips  TVyearGroups TVyearGroups_ITM
-
-reshape wide ITM_signal ITM_station DMA_access ITM_access LoS CATV*, j(year) i(countyfips)
-save ../output/TVwide, replace
-
-
 
 /*********************************************************
 ******         read in voting data     		**********
