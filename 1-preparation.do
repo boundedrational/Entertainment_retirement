@@ -171,6 +171,8 @@ foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 sig
 
   reshape wide ITM_signal ITM_station DMA_access ITM_access LoS CATV*, j(year) i(countyfips)
   save ../output/TVwide_`spec', replace
+  outsheet using ../output/TVwide_`spec', comma replace
+
 }
 
 /*********************************************************
