@@ -143,7 +143,7 @@ foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 sig
   -----------------------------------------
   not matched                             5
       from master                         0  (_merge==1)
-      from using                          5  (_merge==2)
+      from using                          5  (_merge==2) Hawaii & Alaska
 
   matched                             3,049  (_merge==3)
   -----------------------------------------
@@ -171,9 +171,8 @@ foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 sig
   -----------------------------------------
 
   */
-  drop if _m == 2
-  * drop missed match
-  rename _m no_ownershipData
+  replace TVYEAR_ITM = 1960 if _m == 2
+  rename _m ownershipData_merge
 
   **
   ** TV signal
@@ -189,7 +188,7 @@ foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 sig
   foreach var in LoS_station ITM_station {
     replace `var' = 0 if `var' ==.
   }
-
+  /*
   **
   ** TV OWNERSHIP
   **
@@ -198,6 +197,7 @@ foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 sig
   ** missing counties are without tv signal according to magazine
   g TVHH_with0 = tvhh
   replace TVHH_with0 = 0 if year > 1952 & year<1958 & TVHH_with0 == . & no_ownershipData==3
+  */
   save ../output/TVaccess, replace
   use ../output/TVaccess, clear
   keep TVYEAR TVYEAR_ITM  ITM_signal ITM_station DMA_access ITM_access LoS_station CATV_* year countyfips  TVyearGroups TVyearGroups_ITM
