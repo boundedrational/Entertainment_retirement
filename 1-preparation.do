@@ -134,6 +134,7 @@ do "../code/1.1 - ITM.do" `sig_threshold' `cutOff_month' `frequency_prob'
 * generates datasets with TV information for each county. Several specifications are run
 
 foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 signal90904-20 signal90904-50 {
+  *local spec signal90909-50
   import delimited  using ../output/TVsignal_ITM_`spec', clear case(preserve)
   ** add ID for DMA
   merge m:1 DMAINDEX using ../temp/DMATVdate
@@ -204,7 +205,7 @@ foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 sig
 
   reshape wide ITM_signal ITM_station DMA_access ITM_access LoS CATV*, j(year) i(countyfips)
   save ../output/TVwide_`spec', replace
-  outsheet using ../output/TVwide_`spec', comma replace
+  outsheet using ../output/TVwide_`spec'.csv, comma replace
 
 }
 
