@@ -112,18 +112,21 @@ do "../code/1.1 - ITM.do" `sig_threshold' `cutOff_month' `frequency_prob'
 local sig_threshold = -20
 local cutOff_month = 4
 local frequency_prob = "signal9090"
-
 do "../code/1.1 - ITM.do" `sig_threshold' `cutOff_month' `frequency_prob'
+
 local sig_threshold = -50
 local cutOff_month = 9
 local frequency_prob = "signal9090"
-
 do "../code/1.1 - ITM.do" `sig_threshold' `cutOff_month' `frequency_prob'
 
 local sig_threshold = -50
 local cutOff_month = 4
 local frequency_prob = "signal9090"
+do "../code/1.1 - ITM.do" `sig_threshold' `cutOff_month' `frequency_prob'
 
+local sig_threshold = -60
+local cutOff_month = 9
+local frequency_prob = "signal9090"
 do "../code/1.1 - ITM.do" `sig_threshold' `cutOff_month' `frequency_prob'
 
 /*********************************************************
