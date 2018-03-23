@@ -136,7 +136,7 @@ do "../code/1.1 - ITM.do" `sig_threshold' `cutOff_month' `frequency_prob'
 ** ITM data
 * generates datasets with TV information for each county. Several specifications are run
 
-foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 signal90904-20 signal90904-50 {
+foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 signal90904-20 signal90904-50 signal90909-60 {
   *local spec signal90909-50
   import delimited  using ../output/TVsignal_ITM_`spec', clear case(preserve)
   ** add ID for DMA
@@ -149,7 +149,7 @@ foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 sig
       from master                         0  (_merge==1)
       from using                          5  (_merge==2) Hawaii & Alaska
 
-  matched                             3,049  (_merge==3)
+  matched                             3,048  (_merge==3)
   -----------------------------------------
 
   */
