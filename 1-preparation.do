@@ -21,7 +21,11 @@ clear
 
 global datum = subinstr(c(current_date)," ","",.)
 
+/*********************************************************
+******         Census: county LF outcomes         *****
+*********************************************************/
 
+do "../code/1.1 - Census cty outcomes.do"
 
 /*********************************************************
 ******         CPS - SSA data         **********
@@ -41,6 +45,48 @@ cd ${data}/CPS73-SSA/IPUMS
 do cps_00017.do
 save adf, replace
 */
+
+/*********************************************************
+******         load time use data         **********
+*********************************************************/
+
+do "../code/1.1 - AHTUS_new.do"
+
+* graph leisure and tv time
+ egen leisure = rowtotal(act_*)
+ egen ageGroups = cut(age), at(16(5)61 100)
+
+ collapse (mean) leisure tv [pw=xtimewt], by(sample ageGroups)
+
+replace leisure = leisure/60
+replace tv = tv/60
+label var tv "TV"
+label var leisure "leisure hours"
+
+ twoway line leisure tv sample
+
+ * growth in leisure time
+ g nontv_leisure = leisure - tv
+ g tv_helper = tv if sample == 1965
+ egen tv65 = max(tv_helper)
+ g non_helper = non if sample == 1965
+ egen nonL65 = max(non_helper)
+ g tv_growth = tv-tv65
+g nontv_growth = nontv_leisure - nonL65
+g shareTV = tv / leisure
+label var tv_growth "TV"
+label var nontv_growth "Non TV leisure"
+label var shareTV "% watching TV"
+
+
+twoway  (line  leisure sample) (line shareTV sample, yaxis(2)) if sample!=1998 & ageGroups>21, ytitle(daily leisure hours) xtitle(year)  by(ageGroups)
+graph export ../output/timeuse.pdf, replace
+
+*twoway line tv_growth nontv_growth sample if sample>1965, ytitle({&Delta} daily leisure hours) xtitle(year) 
+graph export ../output/delta_timeuse.pdf, replace
+
+* notes("Source: AHTUS time use data. In 1965 on average 92 minutes are spent watching TV and 152 on non-TV leisure activities. Non TV leisure include In home free time activities, Media and computing (excludes TV), out of home free time activity, sports and outdoors. Weights are used to calculate averages.")
+
 /*********************************************************
 ******         read in DMA data     		**********
 *********************************************************/
@@ -88,6 +134,14 @@ reshape wide  TVHH TOTALHH  , i(countyfips) j(year)
 save ../temp/ALlyearTV, replace
 
 /*********************************************************
+******         Translator       **********
+*********************************************************/
+* independent of cut-off month, can define data here
+
+do "../code/1.1-translator.do"
+
+
+/*********************************************************
 ******         read in ITM signal strength     ***********
 *********************************************************/
 
@@ -114,7 +168,7 @@ local cutOff_month = 4
 local frequency_prob = "signal9090"
 do "../code/1.1 - ITM.do" `sig_threshold' `cutOff_month' `frequency_prob'
 
-local sig_threshold = -50
+local sig_threshold = -60
 local cutOff_month = 9
 local frequency_prob = "signal9090"
 do "../code/1.1 - ITM.do" `sig_threshold' `cutOff_month' `frequency_prob'
@@ -124,10 +178,11 @@ local cutOff_month = 4
 local frequency_prob = "signal9090"
 do "../code/1.1 - ITM.do" `sig_threshold' `cutOff_month' `frequency_prob'
 
-local sig_threshold = -60
+local sig_threshold = -50
 local cutOff_month = 9
 local frequency_prob = "signal9090"
 do "../code/1.1 - ITM.do" `sig_threshold' `cutOff_month' `frequency_prob'
+
 
 /*********************************************************
 ******         merge DMA and ITM data     		**********
@@ -141,18 +196,18 @@ foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 sig
   import delimited  using ../output/TVsignal_ITM_`spec', clear case(preserve)
   ** add ID for DMA
   merge m:1 DMAINDEX using ../temp/DMATVdate
-  /*
-
-  Result                           # of obs.
+  
+  /* Result                           # of obs.
   -----------------------------------------
-  not matched                             5
+  not matched                             1
       from master                         0  (_merge==1)
-      from using                          5  (_merge==2) Hawaii & Alaska
+      from using                          1  (_merge==2)
 
-  matched                             3,048  (_merge==3)
+  matched                             3,118  (_merge==3)
   -----------------------------------------
-
   */
+
+
   drop if _m!=3
   drop _merge
 
@@ -163,54 +218,137 @@ foreach spec in  signal90909-50 signal90900-50 signal50504-50 signal90904-80 sig
   ** add GS TV household data
   merge 1:1 countyfips using ../temp/ALlyearTV
 
-  ** virginia cities w/o TV data (and a few other cty)
-  /*
-  Result                           # of obs.
-  -----------------------------------------
-  not matched                            75
-      from master                        14  (_merge==1) 4012 32510 35006  and virginia cities
-      from using                         61  (_merge==2) some of the counties that get TV after 1960 and a few others
+  
+  /*  Result                           # of obs.
+     -----------------------------------------
+     not matched                            24
+         from master                        23  (_merge==1)
+         from using                          1  (_merge==2)
 
-  matched                             3,034  (_merge==3)
-  -----------------------------------------
-
+     matched                             3,094  (_merge==3)
+     -----------------------------------------
   */
-  replace TVYEAR_ITM = 1960 if _m == 2
+ 
   rename _m ownershipData_merge
 
   **
   ** TV signal
   **
 
-  reshape long ITM_signal LoS_station ITM_station CATV_ChannelCount CATV_count TVHH TOTALHH    , i(countyfips) j(year)
+  reshape long ITM_signal LoS_station LoS_Uniqstation ITM_station ITM_Uniqstation CATV_ChannelCount CATV_count translator_count TVHH TOTALHH   ITM_VHFstation , i(countyfips) j(year)
+  
   ** Define TV expoure
   g DMA_access = year >= TVYEAR & TVYEAR!=.
   g ITM_access = ITM_station>0 & ITM_station!=.
   replace ITM_access = 1 if CATV_count >0 & CATV_count!=.
+  replace ITM_access = 1 if translator_count >0 & translator_count!=.
 
   * fill in missing observations
-  foreach var in LoS_station ITM_station {
+  foreach var in LoS_station LoS_Uniqstation ITM_station ITM_Uniqstation ITM_VHFstation {
     replace `var' = 0 if `var' ==.
   }
-  /*
-  **
-  ** TV OWNERSHIP
-  **
-  g tvhh = TVHH / TOTALHH
 
-  ** missing counties are without tv signal according to magazine
-  g TVHH_with0 = tvhh
-  replace TVHH_with0 = 0 if year > 1952 & year<1958 & TVHH_with0 == . & no_ownershipData==3
-  */
   save ../output/TVaccess, replace
   use ../output/TVaccess, clear
-  keep TVYEAR TVYEAR_ITM  ITM_signal ITM_station DMA_access ITM_access LoS_station CATV_* year countyfips  TVyearGroups TVyearGroups_ITM
+  keep TVYEAR TVYEAR_ITM  ITM_signal ITM_station ITM_Uniqstation DMA_access ITM_access LoS_Uniqstation LoS_station CATV_* translator_* year countyfips  TVyearGroups TVyearGroups_ITM ITM_VHFstation
 
-  reshape wide ITM_signal ITM_station DMA_access ITM_access LoS CATV*, j(year) i(countyfips)
+  reshape wide ITM_signal ITM_station ITM_Uniqstation ITM_VHFstation DMA_access ITM_access LoS_Uniqstation LoS_station CATV* translator_* , j(year) i(countyfips)
   save ../output/TVwide_`spec', replace
   outsheet using ../output/TVwide_`spec'.csv, comma replace
 
 }
+
+/**************************************************     merge forzen antenna to later outcomes
+*************************************************/
+* use height from factbook (above ground)
+import delimited using ../PrepFactbooks/CreatePanel/ITM_out_panel.csv  , clear
+keep station height citychannel freq power startdate state signal9090 translat translong
+* find home state & county
+bys station height citychannel freq power startdate: egen max_sig = max(signal9090)
+drop if max_sig != signal9090
+duplicates drop _all, force
+g id_ITM = _n
+g strlen = strlen(citychannel)
+g city= substr(citychannel,1,strlen-2)
+g channel = substr(citychannel,-2,.)
+destring channel, replace
+save ../temp/tv_heightMerge, replace
+
+* find closest antenna to CPs
+insheet using "/Users/felixkoenig/OneDrive - London School of Economics/TV expansion/build/input/freelancer/CPs/Television Factbook 1949/Copy of TV construction permits and applications 1950.csv", delimiter(;) clear
+drop if cp=="yes"
+keep v1 state city channel visual aural height v20 v21
+g id_cp = _n
+rename height heightAAT
+cross using ../temp/tv_heightMerge
+* calculate distance
+geodist translat translong v20 v21, gen(d)
+bys id_cp: egen close_stat= min(d)
+drop if round(d, 0.001) != round(close_stat, 0.001)
+duplicates drop id_cp, force
+keep v20 v21 channel visuala height id_cp height
+
+outsheet using ../output/frozen_CPwithheight.csv, comma replace
+
+/*********************************************************
+******        generate "freeze" placebo treatment       **********
+*********************************************************/
+do "../code/1.1-frozen stations.do"
+
+/*********************************************************
+******  agregate frozen stations at MSA level         ****
+*********************************************************/
+* use county-MSA crosswalk from superstar project (build/code/1.1-geo)
+
+!cp "/Users/felixkoenig/OneDrive - London School of Economics/TV expansion/build/temp/aggregateITMatSSAlevel.dta" "$input_path/" 
+local spec signal90909-50
+
+use ../output/freeze_treatment, clear
+rename fips countyfips2000
+* fix mismatch between 2000 (ITM) counties and 1970 (MSA counties)
+* use freeze info of absorbing counties for these cases
+drop if countyfips2000 == 4012 
+drop if countyfips2000 == 35006 
+drop if countyfips2000 == 51683 
+drop if countyfips2000 == 51685
+drop if countyfips2000 == 51735 
+
+* added freeze issues (no signal data but do have freeze data)
+drop if countyfips2000 == 8014
+replace countyfips2000 = 12025  if countyfips2000==12086
+
+*
+* Define affected by freeze
+* exclude areas that already have TV signal in 1952
+*
+rename countyfips2000 countyfips
+merge 1:m  countyfips using ../output/TVwide_`spec'
+drop _m
+drop if countyfips == 4012 
+drop if countyfips == 35006 
+drop if countyfips == 51683 
+drop if countyfips == 51685
+drop if countyfips == 51735 
+rename  countyfips countyfips_ITM
+
+* check if freeze was biting in 1952
+g freeze_noTV = freeze_treatment if ITM_access1952==0
+replace freeze_noTV = 0  if ITM_access1952==1
+*
+* aggregate at MSA level
+*
+merge 1:m countyfips_ITM using "../input/aggregateITMatSSAlevel"
+* drop Alaska and Hawaii (9 counties)
+drop if _m==1
+* if not frozen data is missing in using
+replace freeze_treatment = 0 if freeze_treatment == .
+replace freeze_noTV = 0 if freeze_noTV == .
+
+
+collapse (mean) freeze_treatment freeze_noTV freeze_station [fw = int(weight)], by(statefip smsaa)
+
+save ../output/frozen_msa, replace
+
 
 /*********************************************************
 ******         read in voting data     		**********
@@ -310,3 +448,86 @@ replace year = year + 1900
 ** Dataset with demographics for 3,103 counties
 save ../output/controls, replace
 
+/*
+********************************************************
+******  merge Census CTY and TV data         ****
+*********************************************************/
+* county ITM data
+use ../output/TVwide_signal90909-50, clear
+keep countyfips ITM_signal1950-ITM_access1950 ITM_signal1960-ITM_access1960 TVYEAR_ITM TVYEAR
+reshape long  ITM_signal ITM_station ITM_Uniqstation ITM_VHFstation DMA_access ITM_access LoS_Uniqstation LoS_station CATV_ChannelCount  CATV_count  translator_count , j(year) i(countyfips)
+
+* treatment is the sum of stations and CATV systems
+egen total_stations = rowtotal(ITM_station CATV_count translator_count)
+egen total_VHFstations = rowtotal(ITM_VHFstation CATV_count translator_count)
+egen total_Uniqstations = rowtotal(ITM_Uniqstation CATV_count translator_count)
+
+
+rename countyfips fips
+merge 1:1 year fips using ../temp/Census4070
+/*
+_m = 2 in 1940 & 1970 (no TV info)
+_m = 1 are 36 fips without outcome data (mismatch in cty definition)
+Result                           # of obs.
+-----------------------------------------
+not matched                         6,236
+    from master                        72  (_merge==1)
+    from using                      6,164  (_merge==2) 
+
+matched                             6,164  (_merge==3)
+-----------------------------------------
+*/
+drop if _m==1
+g tv_inc70 = total_stations
+replace tv_inc70 = 10  if year==1970
+replace tv_inc70 = 10  if tv_inc70>10 & tv_inc70!=.
+
+keep year fips name noemp nilf nilf_men nilf_fem  empop clfpop lfpop lfs_men total_stations total_Uniqstations total_VHFstations TVYEAR_ITM  ITM_signal totpop tv_inc70 pcturban medage  highschool LoS_station LoS_Uniqstation
+
+
+* add MSA identifiers
+rename fips countyfips_ITM
+ 
+reshape wide  name noemp nilf nilf_men nilf_fem  empop clfpop lfpop lfs_men total_stations total_Uniqstations total_VHFstations LoS_station  LoS_Uniqstation TVYEAR_ITM  ITM_signal totpop tv_inc70 pcturban medage  highschool , i(countyfips_ITM) j(year)
+
+merge 1:m countyfips_ITM using "../input/aggregateITMatSSAlevel"
+*_m==1 is Hawaii
+*_m==2 unmatched counties over time?
+/*
+Result                           # of obs.
+-----------------------------------------
+not matched                            30
+    from master                         4  (_merge==1)
+    from using                         26  (_merge==2)
+
+matched                             3,111  (_merge==3)
+-----------------------------------------
+*/
+* some counties straddle MSAs, identify unique places
+bys countyfips_ITM: g unique=_n==1
+g ID_unique = _n
+reshape long  name noemp nilf nilf_men nilf_fem empop clfpop lfpop lfs_men total_stations total_Uniqstations total_VHFstations LoS_station  LoS_Uniqstation TVYEAR_ITM  ITM_signal totpop tv_inc70 pcturban medage  highschool , i(ID_unique) j(year)
+drop _m
+
+
+*state
+rename  countyfips_ITM fips
+g state = int(fips/1000)
+* drop Hawaii
+drop if state==15
+
+g msa2= smsaa
+replace msa2 = 999  if smsaa==.
+egen Treat_level = group(statefip msa2)
+
+
+* weight
+* weight for split counties
+g msa_weight = share_msa if smsaa!=.
+replace  msa_weight = 1 if smsaa==.
+*population in 1940 is used as weight
+bys fips: g helper = totpop if year ==1940
+bys fips: egen pop40 = max(helper)
+drop helper
+
+save "../output/cty_itm.dta", replace

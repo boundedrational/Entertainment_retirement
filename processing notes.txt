@@ -1,0 +1,88 @@
+
+*** Data processing notes
+
+* Generating county- year data on TV signal
+- TV station active if sending before April of the year (this coincides with the publication date of the data source)
+- Assume first of month starting date for stations with only month of starting date reported. See below for corrections.
+- for 20% of stations we have conflicting information about the start date. Use the start date reported in the latest year. This eliminates false start dates that were reported but hit by delays or bancrupcies. This process changes the start date by more than a month for only 3% of counties. Note that the process differs from Gentzkow who assigns the earliest reported start date in conflicting cases. Spot chechink found the latest date to be more accurate.
+- for line of sight transmission assume no terrain and receiver height of 10m. Maximum distance from receiver (taking athomspere deflection into account) is given by: 4.12 * (sqrt(height in meters) + sqrt(10))
+
+- Drop counties that never receive TV. These 69 counties don't have signal or CATV:
+STATE	countyfips
+AK	2020
+AK	2090
+AK	2110
+AK	2122
+AK	2170
+AZ	4015
+CA	6027
+CO	8007
+CO	8033
+CO	8053
+CO	8057
+CO	8079
+CO	8081
+CO	8083
+CO	8097
+CO	8103
+CO	8107
+CO	8109
+CO	8111
+HI	15001
+HI	15003
+HI	15007
+HI	15009
+ID	16025
+ID	16041
+ID	16059
+ID	16081
+ID	16085
+ME	23029
+MI	26141
+MN	27077
+MN	27135
+MT	30005
+MT	30033
+MT	30059
+MT	30077
+MT	30089
+NV	32001
+NV	32009
+NV	32011
+NV	32013
+NV	32015
+NV	32017
+NV	32027
+NV	32033
+NM	35003
+NM	35023
+OR	41015
+OR	41055
+TX	48137
+TX	48243
+UT	49001
+UT	49005
+UT	49009
+UT	49013
+UT	49015
+UT	49017
+UT	49021
+UT	49025
+UT	49027
+UT	49031
+UT	49037
+UT	49053
+UT	49055
+WY	56005
+WY	56035
+The last 3 have LoS signal but never get ITM signal:
+6043
+8091
+30007
+
+
+- earliest date of TV start set to 1946
+- to define treatment groups into pre 1945, 1945-1951 and 1952+ need to use signal information prior to 1948. Our data starts in 1948, build data for 1946 & 1947 by backdating 1948 data for the stations that were active pre 1948.
+- Treatment year is first year we observe signal. Since data starts in 1946, use station launch date for counties that already have signal in 1946
+- For TVYEAR set earliest day to 1946
+

@@ -1,0 +1,17 @@
+--------------------------------------------------------------------------------
+      name:  <unnamed>
+       log:  /Users/felixkoenig/Google Drive/TV exposure/build/code/preparation1
+> 1Oct2017.log
+  log type:  text
+ opened on:  11 Oct 2017, 17:38:58
+
+. 
+. 
+end of do-file
+
+. do "/Users/felixkoenig/Google Drive/TV exposure/build/code/sublime2stata.do"
+
+. cd "$log_path"
+/Users/felixkoenig/Google Drive/TV exposure/build/log
+
+. cap log close
